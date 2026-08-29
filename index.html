@@ -4,8 +4,216 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hi friends</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Outfit:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ink: #0c1f1a;
+        --foam: #f3faf6;
+        --lime: #c8f560;
+        --teal: #1a8f7a;
+        --deep: #06352d;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        font-family: "Outfit", system-ui, sans-serif;
+        color: var(--foam);
+        background:
+          radial-gradient(ellipse 80% 60% at 20% 20%, #2a9d7a 0%, transparent 55%),
+          radial-gradient(ellipse 70% 50% at 85% 75%, #0e5c4a 0%, transparent 50%),
+          linear-gradient(145deg, #042820 0%, #0a4a3c 45%, #126b54 100%);
+        animation: backdrop-shift 12s ease-in-out infinite alternate;
+      }
+
+      @keyframes backdrop-shift {
+        from {
+          background-position: 0% 0%, 100% 100%, 0% 50%;
+        }
+        to {
+          background-position: 30% 20%, 70% 80%, 100% 50%;
+        }
+      }
+
+      .orb {
+        position: fixed;
+        border-radius: 50%;
+        filter: blur(2px);
+        pointer-events: none;
+        opacity: 0.55;
+        mix-blend-mode: soft-light;
+      }
+
+      .orb-a {
+        width: min(42vw, 320px);
+        height: min(42vw, 320px);
+        left: -6vw;
+        top: 12vh;
+        background: radial-gradient(circle at 30% 30%, var(--lime), transparent 70%);
+        animation: drift-a 9s ease-in-out infinite;
+      }
+
+      .orb-b {
+        width: min(55vw, 420px);
+        height: min(55vw, 420px);
+        right: -10vw;
+        bottom: 5vh;
+        background: radial-gradient(circle at 60% 40%, #7ee8c8, transparent 68%);
+        animation: drift-b 11s ease-in-out infinite;
+      }
+
+      .orb-c {
+        width: min(28vw, 200px);
+        height: min(28vw, 200px);
+        left: 55%;
+        top: 8%;
+        background: radial-gradient(circle at 50% 50%, #ffe08a, transparent 70%);
+        animation: float-y 6s ease-in-out infinite;
+      }
+
+      @keyframes drift-a {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        50% {
+          transform: translate(8vw, 6vh) scale(1.12);
+        }
+      }
+
+      @keyframes drift-b {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        50% {
+          transform: translate(-7vw, -5vh) scale(1.08);
+        }
+      }
+
+      @keyframes float-y {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(28px);
+        }
+      }
+
+      .panel {
+        position: relative;
+        z-index: 1;
+        width: min(92vw, 560px);
+        padding: 3rem 2.25rem;
+        text-align: center;
+        border: 1px solid rgba(243, 250, 246, 0.18);
+        background: linear-gradient(
+          160deg,
+          rgba(6, 53, 45, 0.72) 0%,
+          rgba(18, 107, 84, 0.35) 100%
+        );
+        backdrop-filter: blur(10px);
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+        animation: rise-in 0.9s ease-out both;
+      }
+
+      @keyframes rise-in {
+        from {
+          opacity: 0;
+          transform: translateY(24px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .eyebrow {
+        display: inline-block;
+        margin-bottom: 1rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--lime);
+        animation: pulse-soft 2.8s ease-in-out infinite;
+      }
+
+      @keyframes pulse-soft {
+        0%,
+        100% {
+          opacity: 0.7;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+
+      h1 {
+        font-family: "Fraunces", Georgia, serif;
+        font-size: clamp(1.75rem, 5vw, 2.55rem);
+        font-weight: 700;
+        line-height: 1.25;
+        letter-spacing: -0.02em;
+      }
+
+      .date {
+        margin-top: 1.25rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+        font-size: 1.05rem;
+        color: rgba(243, 250, 246, 0.9);
+      }
+
+      .dot {
+        width: 0.55rem;
+        height: 0.55rem;
+        border-radius: 50%;
+        background: var(--lime);
+        box-shadow: 0 0 0 0 rgba(200, 245, 96, 0.55);
+        animation: ping 1.8s ease-out infinite;
+      }
+
+      @keyframes ping {
+        0% {
+          box-shadow: 0 0 0 0 rgba(200, 245, 96, 0.55);
+        }
+        70% {
+          box-shadow: 0 0 0 12px rgba(200, 245, 96, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(200, 245, 96, 0);
+        }
+      }
+    </style>
   </head>
   <body>
-    <p>Hi friends, we are starting it on 29 August 2026.</p>
+    <div class="orb orb-a" aria-hidden="true"></div>
+    <div class="orb orb-b" aria-hidden="true"></div>
+    <div class="orb orb-c" aria-hidden="true"></div>
+
+    <main class="panel">
+      <p class="eyebrow">Day one</p>
+      <h1>Hi friends, we are starting it on 29 August.</h1>
+      <p class="date">
+        <span class="dot" aria-hidden="true"></span>
+        <time datetime="2026-08-29">29 August 2026</time>
+      </p>
+    </main>
   </body>
 </html>

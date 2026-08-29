@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Next.js
+frontend/.next/
+frontend/out/
+
+# Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+*.cover
+
+# Logs
+*.log
+logs/
+
+# Local SQLite files
+*.db
+*.sqlite3
+
+# Uploaded document storage (local dev)
+backend/storage/
+smoke-storage/
+
+# Docker volumes (local)
+postgres_data/
+redis_data/

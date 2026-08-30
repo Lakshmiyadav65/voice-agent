@@ -1,15 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4f6f8;
+  --background: #f2f5f3;
   --foreground: #14212b;
   --surface: #ffffff;
   --muted: #5c6b7a;
-  --border: #d8e0e8;
-  --accent: #0f6e56;
-  --accent-soft: #e6f4ef;
-  --ink: #0b1c17;
+  --border: #d5ddd8;
+  --accent: #0c7a5f;
+  --accent-soft: #daf0e8;
+  --ink: #071a14;
   --warn: #9a6700;
+  --hero-deep: #04281f;
+  --hero-mid: #0a4a3a;
+  --hero-lime: #c6f06a;
 }
 
 @theme inline {
@@ -22,6 +25,9 @@
   --color-accent-soft: var(--accent-soft);
   --color-ink: var(--ink);
   --color-warn: var(--warn);
+  --color-hero-deep: var(--hero-deep);
+  --color-hero-mid: var(--hero-mid);
+  --color-hero-lime: var(--hero-lime);
   --font-sans: var(--font-manrope);
   --font-display: var(--font-source-serif);
 }
@@ -30,4 +36,55 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-manrope), system-ui, sans-serif;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes drift-soft {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(3%, -2%) scale(1.06);
+  }
+}
+
+@keyframes pulse-line {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-rise {
+  animation: rise-in 0.85s ease-out both;
+}
+
+.animate-rise-delay {
+  animation: rise-in 0.9s ease-out 0.12s both;
+}
+
+.animate-rise-delay-2 {
+  animation: rise-in 0.95s ease-out 0.24s both;
+}
+
+.animate-drift {
+  animation: drift-soft 14s ease-in-out infinite;
+}
+
+.animate-pulse-line {
+  animation: pulse-line 2.4s ease-in-out infinite;
 }

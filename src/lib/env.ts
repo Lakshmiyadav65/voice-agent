@@ -13,6 +13,15 @@ export function getPublicSupabaseAnonKey(): string | undefined {
   return value && value !== "your-anon-key" ? value : undefined;
 }
 
+export function getServiceRoleKey(): string | undefined {
+  const value = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  return value && value !== "your-service-role-key" ? value : undefined;
+}
+
 export function isSupabaseConfigured(): boolean {
   return Boolean(getPublicSupabaseUrl() && getPublicSupabaseAnonKey());
+}
+
+export function isSupabaseFullyConfigured(): boolean {
+  return isSupabaseConfigured() && Boolean(getServiceRoleKey());
 }

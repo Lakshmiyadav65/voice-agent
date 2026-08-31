@@ -4,85 +4,96 @@ Managed AI employees for Indian businesses. Business owners manage facts (prices
 
 **Source of truth:** [docs/AI_Employee_Master_Product_Spec.pdf](docs/AI_Employee_Master_Product_Spec.pdf)
 
-## Phase 1 status
+## Phase status
 
-| Goal | Status |
-|------|--------|
-| Repository scaffold (Next.js + TypeScript + Tailwind) | Done |
-| Environment placeholders (Supabase) | Done |
-| Base UI: landing, business dashboard shell, trainer shell | Done |
+| Phase | Goal | Status |
+|-------|------|--------|
+| 1 | Repository + environment + base UI | Done |
+| 2 | Database + Auth + RLS | Done |
+| 3 | Application shell/routes | Next |
 
-Phase 1 does **not** require a live Supabase project. Auth, RLS, and database work start in Phase 2.
-
-## Stack (from master spec)
+## Stack
 
 - Next.js App Router + React + TypeScript + Tailwind
-- Next.js server/API layer (no separate Python backend)
-- Supabase for Postgres, Auth, and Storage (from Phase 2)
+- Supabase (Postgres, Auth, RLS)
 - Zod and provider adapters in later phases
 
 ## Quick start
 
 ```bash
 npm install
-cp .env.example .env.local   # optional for Phase 1
+cp .env.example .env.local
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
 
-| Route | Purpose |
-|-------|---------|
-| `/` | Product landing |
-| `/dashboard` | Business owner shell |
-| `/trainer` | Internal AI trainer shell |
+## Phase 2 — Supabase setup
+
+1. Create a [Supabase](https://supabase.com) project.
+2. Copy project URL, anon key, and service role key into `.env.local`.
+3. Apply migrations (Supabase SQL editor or CLI):
 
 ```bash
+# With Supabase CLI + Docker
+supabase db push
+
+# Or paste supabase/migrations/20260831000000_phase2_core_auth_rls.sql into the SQL editor
+```
+
+4. Seed demo users and business data:
+
+```bash
+npm run db:seed
+```
+
+### Demo logins
+
+| Email | Password | Role | Redirect |
+|-------|----------|------|----------|
+| `ravi@srimobile.in` | `OwnerPass123` | Business owner | `/dashboard` |
+| `trainer@platform.in` | `TrainerPass123` | AI trainer | `/trainer` |
+| `admin@platform.in` | `AdminPass123` | Admin | `/trainer` |
+
+### What Phase 2 includes
+
+- `profiles`, `businesses`, `business_members`, `ai_employees`, `ai_versions` tables
+- Row Level Security for tenant isolation
+- Supabase Auth login/logout
+- Protected `/dashboard` and `/trainer` routes with role-based redirects
+- Seed script for demo data
+
+```bash
+npm run test:roles   # role routing unit checks
 npm run build
 npm run lint
 ```
 
 ## Environment
 
-Copy `.env.example` to `.env.local` when you are ready for Phase 2:
-
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY` (server-only; never ship to the browser)
-
-Client stubs live in `src/lib/supabase/` and return `null` until those values are set.
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key   # server-only, for seed script
+```
 
 ## Project structure
 
 ```text
-docs/                  Master spec + supporting briefs
-src/app/               Routes (landing, dashboard, trainer)
-src/components/        Shell and shared UI
-src/lib/               Env helpers, navigation, Supabase stubs
+docs/                     Product specs
+supabase/migrations/      Database schema + RLS
+scripts/                  Seed and test scripts
+src/app/                  Routes (landing, login, dashboard, trainer)
+src/components/           UI and auth components
+src/lib/auth/             Session and role helpers
+src/lib/supabase/         Supabase clients + middleware
 ```
 
 ## Roadmap (master spec)
 
-1. Repository + environment + base UI ← **current**
-2. Database + Auth + RLS
+1. Repository + environment + base UI ✓
+2. Database + Auth + RLS ✓
 3. Application shell/routes
 4. Business onboarding
 5. Business Brain structured data
-6. File upload + knowledge
-7. AI Trainer Console
-8. AI Test Lab
-9. AI Orchestrator + tools
-10. Voice integration
-11. WhatsApp
-12. Leads + appointments
-13. Business dashboard
-14. Continuous improvement
-15. AI versioning + deployment
-16–20. Hardening, polish, security, production, pilot
-
-## Cursor build contract
-
-- Treat the master PDF as the source of truth
-- Build one phase at a time; keep the app runnable after each phase
-- Business data is runtime truth; never fabricate missing facts
-- Do not put secrets in code or docs
+6–20. Knowledge, trainer console, voice, WhatsApp, pilot, production

@@ -1,12 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+import type { Database } from "@/lib/database.types";
 import { getPublicSupabaseAnonKey, getPublicSupabaseUrl } from "@/lib/env";
 
-/**
- * Server Supabase client. Returns null when env is not configured (Phase 1).
- * Auth and RLS arrive in Phase 2.
- */
 export async function createClient() {
   const url = getPublicSupabaseUrl();
   const anonKey = getPublicSupabaseAnonKey();
@@ -17,7 +14,7 @@ export async function createClient() {
 
   const cookieStore = await cookies();
 
-  return createServerClient(url, anonKey, {
+  return createServerClient<Database>(url, anonKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();

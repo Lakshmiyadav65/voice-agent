@@ -1,15 +1,48 @@
 import { PlaceholderPanel } from "@/components/ui/PlaceholderPanel";
+import { requireDashboardAccess } from "@/lib/auth/session";
+import type { Business } from "@/lib/database.types";
+import { createClient } from "@/lib/supabase/server";
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const session = await requireDashboardAccess();
+  const supabase = await createClient();
+
+  let businesses: Array<Business & { memberRole: string }> = [];
+
+  if (supabase) {
+    const { data: memberships } = await supabase
+      .from("business_members")
+      .select("role, business_id")
+      .eq("user_id", session.userId);
+
+    const businessIds = memberships?.map((row) => row.business_id) ?? [];
+
+    if (businessIds.length > 0) {
+      const { data: businessRows } = await supabase
+        .from("businesses")
+        .select("id, name, industry, status, phone, email, timezone, created_at, updated_at")
+        .in("id", businessIds);
+
+      businesses =
+        businessRows?.map((business) => ({
+          ...business,
+          memberRole:
+            memberships?.find((row) => row.business_id === business.id)?.role ?? "staff",
+        })) ?? [];
+    }
+  }
+
   return (
     <div className="space-y-8">
       <PlaceholderPanel
         title="Dashboard"
-        description="Live AI status, today’s calls, leads, WhatsApp sends, appointments, and alerts will appear here. Phase 1 ships the information architecture only."
+        description="You are signed in with tenant-isolated access. Business data below is loaded through Supabase RLS — only your memberships are visible."
         notes={[
-          "AI Employee status and performance summary",
-          "Calls today, qualified leads, WhatsApp sent, appointments",
-          "Recent conversations and actionable alerts",
+          `Signed in as ${session.profile.full_name ?? session.email}`,
+          `Platform role: ${session.profile.platform_role}`,
+          businesses.length
+            ? `Active businesses: ${businesses.map((b) => b.name).join(", ")}`
+            : "No business memberships yet — run npm run db:seed",
         ]}
       />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -17,7 +50,7 @@ export default function DashboardPage() {
           { label: "Calls today", value: "—" },
           { label: "Qualified leads", value: "—" },
           { label: "WhatsApp sent", value: "—" },
-          { label: "Appointments", value: "—" },
+          { label: "Businesses", value: String(businesses.length) },
         ].map((stat) => (
           <div
             key={stat.label}

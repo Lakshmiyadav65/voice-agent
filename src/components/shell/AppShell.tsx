@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { SignOutButton } from "@/components/auth/SignOutButton";
 import { SiteHeader } from "@/components/shell/SiteHeader";
 import { Sidebar } from "@/components/shell/Sidebar";
 import type { NavItem } from "@/lib/navigation";
@@ -10,6 +11,7 @@ type AppShellProps = {
   title: string;
   subtitle: string;
   homeHref: string;
+  userLabel?: string;
 };
 
 export function AppShell({
@@ -18,6 +20,7 @@ export function AppShell({
   title,
   subtitle,
   homeHref,
+  userLabel,
 }: AppShellProps) {
   return (
     <div className="min-h-full bg-background">
@@ -26,9 +29,15 @@ export function AppShell({
         <Link href={homeHref} className="font-medium text-accent hover:underline">
           {title}
         </Link>
-        <Link href="/" className="text-muted hover:text-foreground">
-          Back to home
-        </Link>
+        <div className="flex items-center gap-4">
+          {userLabel ? (
+            <span className="hidden text-muted sm:inline">{userLabel}</span>
+          ) : null}
+          <SignOutButton />
+          <Link href="/" className="text-muted hover:text-foreground">
+            Home
+          </Link>
+        </div>
       </div>
       <div className="flex flex-col md:flex-row">
         <Sidebar items={nav} title={title} subtitle={subtitle} />

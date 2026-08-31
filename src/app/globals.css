@@ -1,18 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f2f5f3;
-  --foreground: #14212b;
+  --background: #eef3f0;
+  --foreground: #1a2a24;
   --surface: #ffffff;
-  --muted: #5c6b7a;
-  --border: #d5ddd8;
-  --accent: #0c7a5f;
-  --accent-soft: #daf0e8;
-  --ink: #071a14;
+  --muted: #5a6d64;
+  --border: #d0ddd6;
+  --accent: #0b6b52;
+  --accent-soft: #d7efe6;
+  --ink: #061510;
   --warn: #9a6700;
-  --hero-deep: #04281f;
-  --hero-mid: #0a4a3a;
-  --hero-lime: #c6f06a;
+  --hero-deep: #031912;
+  --hero-mid: #0a4536;
+  --hero-lime: #c8f26d;
+  --sand: #f7f3ea;
 }
 
 @theme inline {
@@ -28,6 +29,7 @@
   --color-hero-deep: var(--hero-deep);
   --color-hero-mid: var(--hero-mid);
   --color-hero-lime: var(--hero-lime);
+  --color-sand: var(--sand);
   --font-sans: var(--font-manrope);
   --font-display: var(--font-source-serif);
 }
@@ -41,7 +43,7 @@ body {
 @keyframes rise-in {
   from {
     opacity: 0;
-    transform: translateY(18px);
+    transform: translateY(22px);
   }
   to {
     opacity: 1;
@@ -52,39 +54,73 @@ body {
 @keyframes drift-soft {
   0%,
   100% {
-    transform: translate(0, 0) scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
   }
   50% {
-    transform: translate(3%, -2%) scale(1.06);
+    transform: translate3d(2.5%, -1.5%, 0) scale(1.05);
   }
 }
 
-@keyframes pulse-line {
+@keyframes wave {
   0%,
   100% {
-    opacity: 0.45;
+    transform: scaleY(0.45);
   }
   50% {
-    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes draw-line {
+  from {
+    stroke-dashoffset: 240;
+  }
+  to {
+    stroke-dashoffset: 0;
   }
 }
 
 .animate-rise {
-  animation: rise-in 0.85s ease-out both;
+  animation: rise-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .animate-rise-delay {
-  animation: rise-in 0.9s ease-out 0.12s both;
+  animation: rise-in 0.95s cubic-bezier(0.22, 1, 0.36, 1) 0.14s both;
 }
 
 .animate-rise-delay-2 {
-  animation: rise-in 0.95s ease-out 0.24s both;
+  animation: rise-in 1s cubic-bezier(0.22, 1, 0.36, 1) 0.28s both;
 }
 
 .animate-drift {
-  animation: drift-soft 14s ease-in-out infinite;
+  animation: drift-soft 16s ease-in-out infinite;
 }
 
-.animate-pulse-line {
-  animation: pulse-line 2.4s ease-in-out infinite;
+.wave-bar {
+  transform-origin: center bottom;
+  animation: wave 1.4s ease-in-out infinite;
+}
+
+.wave-bar:nth-child(2) {
+  animation-delay: 0.12s;
+}
+.wave-bar:nth-child(3) {
+  animation-delay: 0.24s;
+}
+.wave-bar:nth-child(4) {
+  animation-delay: 0.08s;
+}
+.wave-bar:nth-child(5) {
+  animation-delay: 0.32s;
+}
+.wave-bar:nth-child(6) {
+  animation-delay: 0.18s;
+}
+.wave-bar:nth-child(7) {
+  animation-delay: 0.4s;
+}
+
+.path-draw {
+  stroke-dasharray: 240;
+  animation: draw-line 2.2s ease-out 0.4s both;
 }

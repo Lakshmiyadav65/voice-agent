@@ -1,11 +1,8 @@
 import { createBrowserClient } from "@supabase/ssr";
 
+import type { Database } from "@/lib/database.types";
 import { getPublicSupabaseAnonKey, getPublicSupabaseUrl } from "@/lib/env";
 
-/**
- * Browser Supabase client. Returns null when env is not configured (Phase 1).
- * Auth flows arrive in Phase 2.
- */
 export function createClient() {
   const url = getPublicSupabaseUrl();
   const anonKey = getPublicSupabaseAnonKey();
@@ -14,5 +11,5 @@ export function createClient() {
     return null;
   }
 
-  return createBrowserClient(url, anonKey);
+  return createBrowserClient<Database>(url, anonKey);
 }

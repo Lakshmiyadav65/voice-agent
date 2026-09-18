@@ -10,7 +10,8 @@ Managed AI employees for Indian businesses. Business owners manage facts (prices
 |-------|------|--------|
 | 1 | Repository + environment + base UI | Done |
 | 2 | Database + Auth + RLS | Done |
-| 3 | Application shell/routes | Next |
+| 3 | Application shell/routes | Done |
+| 4 | Business onboarding | Next |
 
 ## Stack
 
@@ -27,6 +28,17 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+## Phase 3 — Application shell
+
+Dedicated routes for every owner and trainer screen, with:
+
+- Page headers, breadcrumbs, and empty states
+- Business Information sub-navigation (products, prices, inventory, offers, FAQs, documents, policies)
+- Dashboard layouts matching the product IA
+- Real AI employee data on owner dashboard when seeded
+
+Screens show planned capabilities and which future phase delivers live data/forms.
 
 ## Phase 2 — Supabase setup
 
@@ -93,7 +105,7 @@ src/lib/supabase/         Supabase clients + middleware
 
 1. Repository + environment + base UI ✓
 2. Database + Auth + RLS ✓
-3. Application shell/routes
+3. Application shell/routes ✓
 4. Business onboarding
 5. Business Brain structured data
 6–20. Knowledge, trainer console, voice, WhatsApp, pilot, production

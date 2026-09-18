@@ -1,70 +1,84 @@
-import { PlaceholderPanel } from "@/components/ui/PlaceholderPanel";
+import Link from "next/link";
+
+import { AiEmployeeStatusCard } from "@/components/owner/AiEmployeeStatusCard";
+import { PageHeader } from "@/components/shell/PageHeader";
+import { StatCard } from "@/components/ui/StatCard";
 import { requireDashboardAccess } from "@/lib/auth/session";
-import type { Business } from "@/lib/database.types";
-import { createClient } from "@/lib/supabase/server";
+import { getOwnerWorkspace } from "@/lib/data/workspace";
+import { ownerPages } from "@/lib/pages";
 
 export default async function DashboardPage() {
   const session = await requireDashboardAccess();
-  const supabase = await createClient();
-
-  let businesses: Array<Business & { memberRole: string }> = [];
-
-  if (supabase) {
-    const { data: memberships } = await supabase
-      .from("business_members")
-      .select("role, business_id")
-      .eq("user_id", session.userId);
-
-    const businessIds = memberships?.map((row) => row.business_id) ?? [];
-
-    if (businessIds.length > 0) {
-      const { data: businessRows } = await supabase
-        .from("businesses")
-        .select("id, name, industry, status, phone, email, timezone, created_at, updated_at")
-        .in("id", businessIds);
-
-      businesses =
-        businessRows?.map((business) => ({
-          ...business,
-          memberRole:
-            memberships?.find((row) => row.business_id === business.id)?.role ?? "staff",
-        })) ?? [];
-    }
-  }
+  const workspace = await getOwnerWorkspace(session.userId);
+  const primaryEmployee = workspace.aiEmployees[0] ?? null;
 
   return (
-    <div className="space-y-8">
-      <PlaceholderPanel
-        title="Dashboard"
-        description="You are signed in with tenant-isolated access. Business data below is loaded through Supabase RLS — only your memberships are visible."
-        notes={[
-          `Signed in as ${session.profile.full_name ?? session.email}`,
-          `Platform role: ${session.profile.platform_role}`,
-          businesses.length
-            ? `Active businesses: ${businesses.map((b) => b.name).join(", ")}`
-            : "No business memberships yet — run npm run db:seed",
-        ]}
+    <div>
+      <PageHeader
+        title={ownerPages.dashboard.title}
+        description={ownerPages.dashboard.description}
       />
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          { label: "Calls today", value: "—" },
-          { label: "Qualified leads", value: "—" },
-          { label: "WhatsApp sent", value: "—" },
-          { label: "Businesses", value: String(businesses.length) },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="border border-border bg-surface px-4 py-4"
-          >
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-              {stat.label}
-            </p>
-            <p className="mt-2 font-display text-2xl font-semibold text-ink">
-              {stat.value}
-            </p>
-          </div>
-        ))}
+
+      <div className="grid gap-6 lg:grid-cols-[1fr_2fr]">
+        <AiEmployeeStatusCard
+          employee={primaryEmployee}
+          businessName={workspace.primaryBusiness?.name}
+        />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <StatCard label="Calls today" value="—" hint="Phase 10" />
+          <StatCard label="Qualified leads" value="—" hint="Phase 12" />
+          <StatCard label="WhatsApp sent" value="—" hint="Phase 11" />
+          <StatCard label="Appointments" value="—" hint="Phase 12" />
+        </div>
       </div>
+
+      <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="AI performance"
+          value="—"
+          hint="Evaluation in Phase 8+"
+        />
+        <StatCard
+          label="Businesses"
+          value={String(workspace.businesses.length)}
+        />
+        <StatCard
+          label="Products"
+          value="—"
+          hint="Phase 5"
+        />
+        <StatCard
+          label="Knowledge docs"
+          value="—"
+          hint="Phase 6"
+        />
+      </div>
+
+      <section className="mt-10 border-t border-border pt-8">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+          Quick actions
+        </h2>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link
+            href="/dashboard/business/products"
+            className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
+          >
+            Manage products
+          </Link>
+          <Link
+            href="/dashboard/calls"
+            className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
+          >
+            View calls
+          </Link>
+          <Link
+            href="/dashboard/leads"
+            className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
+          >
+            View leads
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }

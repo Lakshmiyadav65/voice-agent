@@ -26,7 +26,11 @@ export function Sidebar({ items, title, subtitle }: SidebarProps) {
         {items.map((item) => {
           const active =
             pathname === item.href ||
-            (item.href !== items[0]?.href && pathname.startsWith(`${item.href}/`));
+            (item.href === "/dashboard/business" &&
+              pathname.startsWith("/dashboard/business")) ||
+            (item.href !== items[0]?.href &&
+              item.href !== "/dashboard/business" &&
+              pathname.startsWith(`${item.href}/`));
 
           return (
             <Link

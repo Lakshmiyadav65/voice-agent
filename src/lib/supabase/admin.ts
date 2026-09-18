@@ -1,12 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/lib/database.types";
+import { getPublicSupabaseUrl, getServiceRoleKey } from "@/lib/env";
 
 export function createAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = getPublicSupabaseUrl();
+  const serviceRoleKey = getServiceRoleKey();
 
-  if (!url || !serviceRoleKey || serviceRoleKey === "your-service-role-key") {
+  if (!url || !serviceRoleKey) {
     return null;
   }
 

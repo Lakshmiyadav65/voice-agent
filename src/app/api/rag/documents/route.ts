@@ -1,0 +1,143 @@
+import { NextResponse } from "next/server";
+import { getSessionContext } from "@/lib/auth/session";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+export async function GET(request: Request) {
+  try {
+    const session = await getSessionContext();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const aiEmployeeId = searchParams.get("aiEmployeeId");
+
+    if (!aiEmployeeId) {
+      return NextResponse.json({ error: "aiEmployeeId is required" }, { status: 400 });
+    }
+
+    const supabase = createAdminClient();
+    if (!supabase) {
+      return NextResponse.json({ error: "Database client unavailable" }, { status: 500 });
+    }
+
+    // Resolve employee's business_id
+    const { data: employee } = await supabase
+      .from("ai_employees")
+      .select("business_id")
+      .eq("id", aiEmployeeId)
+      .maybeSingle();
+
+    const businessId = employee?.business_id;
+
+    // Fetch documents from Supabase
+    let documents: any[] = [];
+    let chunksCount = 0;
+
+    try {
+      let docQuery = supabase
+        .from("knowledge_documents")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (businessId) {
+        docQuery = docQuery.or(`business_id.eq.${businessId},ai_employee_id.eq.${aiEmployeeId}`);
+      } else {
+        docQuery = docQuery.eq("ai_employee_id", aiEmployeeId);
+      }
+
+      const { data: dbDocs } = await docQuery;
+      if (dbDocs) documents = dbDocs;
+
+      // Count chunks per document directly from knowledge_chunks table
+      const { data: chunkList } = await supabase
+        .from("knowledge_chunks")
+        .select("document_id");
+
+      const countMap: Record<string, number> = {};
+      if (chunkList) {
+        for (const c of chunkList) {
+          if (c.document_id) {
+            countMap[c.document_id] = (countMap[c.document_id] || 0) + 1;
+          }
+        }
+      }
+
+      documents = documents.map((d) => ({
+        ...d,
+        chunk_count: countMap[d.id] ?? d.metadata?.chunk_count ?? 1,
+      }));
+
+      let chunkQuery = supabase
+        .from("knowledge_chunks")
+        .select("id", { count: "exact", head: true });
+
+      if (businessId) {
+        chunkQuery = chunkQuery.or(`business_id.eq.${businessId},ai_employee_id.eq.${aiEmployeeId}`);
+      } else {
+        chunkQuery = chunkQuery.eq("ai_employee_id", aiEmployeeId);
+      }
+
+      const { count } = await chunkQuery;
+      if (count !== null) chunksCount = count;
+    } catch {
+      // Supabase tables pending migration
+    }
+
+    // Merge with local RAG store fallback
+    const { localRagStore } = await import("@/lib/rag/local-cache");
+    const localDocs = localRagStore.getDocuments(aiEmployeeId);
+    const localChunks = localRagStore.getChunks(aiEmployeeId);
+
+    // De-duplicate by id
+    const existingIds = new Set(documents.map((d) => d.id));
+    for (const ld of localDocs) {
+      if (!existingIds.has(ld.id)) {
+        documents.push(ld);
+      }
+    }
+
+    const totalChunksCombined = Math.max(chunksCount, localChunks.length);
+
+    return NextResponse.json({
+      documents,
+      totalChunks: totalChunksCombined,
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || "Failed to fetch documents" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const session = await getSessionContext();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const documentId = searchParams.get("id");
+
+    if (!documentId) {
+      return NextResponse.json({ error: "Document id is required" }, { status: 400 });
+    }
+
+    const supabase = createAdminClient();
+    if (supabase) {
+      try {
+        await supabase.from("knowledge_chunks").delete().eq("document_id", documentId);
+        await supabase.from("knowledge_documents").delete().eq("id", documentId);
+      } catch {
+        // ignore
+      }
+    }
+
+    // Also delete from local store
+    const { localRagStore } = await import("@/lib/rag/local-cache");
+    localRagStore.deleteDocument(documentId);
+
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || "Failed to delete document" }, { status: 500 });
+  }
+}

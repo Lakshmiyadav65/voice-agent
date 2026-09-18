@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:seed": "tsx --env-file=.env.local scripts/seed-phase2.ts",
+    "db:seed": "tsx --env-file=.env scripts/seed-phase2.ts",
     "test:roles": "tsx scripts/test-roles.ts"
   },
   "dependencies": {

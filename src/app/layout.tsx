@@ -30,7 +30,10 @@ export default function RootLayout({
       lang="en"
       className={`${manrope.variable} ${sourceSerif.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      {/* Extensions inject attributes into body before hydration; suppression is one level deep only */}
+      <body className="min-h-full flex flex-col font-sans" suppressHydrationWarning>
+        {children}
+      </body>
     </html>
   );
 }

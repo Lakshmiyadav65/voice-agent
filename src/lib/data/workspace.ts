@@ -19,28 +19,22 @@ export async function getOwnerWorkspace(userId: string): Promise<OwnerWorkspace>
 
   const { data: memberships } = await supabase
     .from("business_members")
-    .select("business_id")
+    .select("businesses(*)")
     .eq("user_id", userId);
 
-  const businessIds = memberships?.map((row) => row.business_id) ?? [];
-  if (businessIds.length === 0) return empty;
+  const businesses = (memberships ?? [])
+    .flatMap((row) => (row as unknown as { businesses: Business | null }).businesses ?? []);
 
-  const { data: businesses } = await supabase
-    .from("businesses")
+  const primaryBusiness = businesses[0] ?? null;
+  if (!primaryBusiness) return empty;
+
+  const { data: aiEmployees } = await supabase
+    .from("ai_employees")
     .select("*")
-    .in("id", businessIds);
-
-  const primaryBusiness = businesses?.[0] ?? null;
-
-  const { data: aiEmployees } = primaryBusiness
-    ? await supabase
-        .from("ai_employees")
-        .select("*")
-        .eq("business_id", primaryBusiness.id)
-    : { data: [] };
+    .eq("business_id", primaryBusiness.id);
 
   return {
-    businesses: businesses ?? [],
+    businesses,
     aiEmployees: aiEmployees ?? [],
     primaryBusiness,
   };

@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { redirect } from "next/navigation";
 
 import {
@@ -14,7 +16,12 @@ export type SessionContext = {
   profile: Profile;
 };
 
-export async function getSessionContext(): Promise<SessionContext | null> {
+/**
+ * Cached per request: the layout and the page it renders both need the
+ * session, and each uncached call costs an auth round trip plus a profile
+ * query.
+ */
+export const getSessionContext = cache(async function getSessionContext(): Promise<SessionContext | null> {
   const supabase = await createClient();
   if (!supabase) return null;
 
@@ -39,7 +46,7 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     email: user.email ?? typedProfile.email,
     profile: typedProfile,
   };
-}
+});
 
 export async function requireAuth(): Promise<SessionContext> {
   const session = await getSessionContext();

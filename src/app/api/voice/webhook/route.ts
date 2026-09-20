@@ -1,37 +1,84 @@
+import { timingSafeEqual } from "crypto";
+
 import { NextResponse } from "next/server";
-import { SarvamWebhookPayload } from "@/lib/sarvam/types";
+
+import type { SarvamWebhookPayload } from "@/lib/sarvam/types";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { summarizeCall } from "@/lib/voice/summarize-call";
+
+const LEAD_STATUS_BY_CALL_STATUS = {
+  connected: "contacted",
+  no_answer: "unreachable",
+  busy: "unreachable",
+  failed: "unreachable",
+} as const;
+
+function secretMatches(received: unknown): boolean {
+  const expected = process.env.SARVAM_WEBHOOK_SECRET;
+  if (!expected) return true;
+  if (typeof received !== "string") return false;
+
+  const a = Buffer.from(received);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 export async function POST(request: Request) {
   try {
     const payload: SarvamWebhookPayload = await request.json();
 
-    console.log("[Sarvam Voice Webhook] Received call completion event:", {
-      attempt_id: payload.attempt_id,
-      status: payload.status,
-      duration: payload.duration,
-      interaction_id: payload.interaction_id,
-      failure_reason: payload.failure_reason,
-      lead_id: payload.webhook_config?.metadata?.lead_id,
-    });
-
-    if (payload.interaction_transcript && payload.interaction_transcript.length > 0) {
-      console.log(
-        "[Sarvam Voice Webhook] Transcript summary turns:",
-        payload.interaction_transcript.length
-      );
+    if (!secretMatches(payload.webhook_config?.metadata?.webhook_secret)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (payload.final_agent_variables) {
-      console.log(
-        "[Sarvam Voice Webhook] Final extracted agent variables:",
-        payload.final_agent_variables
-      );
+    if (!payload.attempt_id) {
+      return NextResponse.json({ error: "Missing attempt_id" }, { status: 400 });
     }
 
-    // Return 200 OK so Sarvam marks the webhook delivery successful
+    const supabase = createAdminClient();
+    if (!supabase) {
+      return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+    }
+
+    const { data: attempt } = await supabase
+      .from("call_attempts")
+      .select("id, lead_id")
+      .eq("attempt_id", payload.attempt_id)
+      .maybeSingle();
+
+    if (!attempt) {
+      // Console-triggered test calls have no lead behind them.
+      return NextResponse.json({ received: true, matched: false });
+    }
+
+    const { summary, visitRequested, preferredVisitAt } = await summarizeCall(
+      payload.interaction_transcript,
+      payload.final_agent_variables
+    );
+
+    await supabase
+      .from("call_attempts")
+      .update({
+        status: payload.status,
+        interaction_id: payload.interaction_id,
+        duration: payload.duration,
+        failure_reason: payload.failure_reason,
+        transcript: payload.interaction_transcript,
+        final_variables: payload.final_agent_variables,
+        summary,
+        visit_requested: visitRequested,
+        preferred_visit_at: preferredVisitAt,
+      })
+      .eq("id", attempt.id);
+
+    await supabase
+      .from("leads")
+      .update({ status: LEAD_STATUS_BY_CALL_STATUS[payload.status] ?? "contacted" })
+      .eq("id", attempt.lead_id);
+
     return NextResponse.json({ received: true, attempt_id: payload.attempt_id });
   } catch (err: any) {
-    console.error("[Sarvam Voice Webhook] Error parsing webhook:", err);
+    console.error("[Sarvam Voice Webhook] Error handling webhook:", err);
     return NextResponse.json({ error: "Invalid webhook payload" }, { status: 400 });
   }
 }

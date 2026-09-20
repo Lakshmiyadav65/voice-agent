@@ -16,6 +16,8 @@ create table if not exists public.leads (
   enquiry text,
   source text not null default 'ad_form',
   utm jsonb not null default '{}'::jsonb,
+  -- Hashed, not raw: only ever compared against itself for abuse throttling.
+  ip_hash text,
   status text not null default 'new' check (status in ('new', 'calling', 'contacted', 'unreachable', 'converted', 'closed')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -25,8 +27,9 @@ create index if not exists leads_business_id_idx on public.leads (business_id);
 create index if not exists leads_status_idx on public.leads (status);
 create index if not exists leads_created_at_idx on public.leads (created_at desc);
 
--- Throttling lookup: recent submissions for the same number
+-- Throttling lookups: recent submissions per number and per origin
 create index if not exists leads_phone_created_at_idx on public.leads (phone, created_at desc);
+create index if not exists leads_ip_hash_created_at_idx on public.leads (ip_hash, created_at desc);
 
 create trigger leads_set_updated_at
   before update on public.leads

@@ -86,6 +86,7 @@ export type Lead = {
   enquiry: string | null;
   source: string;
   utm: Record<string, any>;
+  ip_hash: string | null;
   status: "new" | "calling" | "contacted" | "unreachable" | "converted" | "closed";
   created_at: string;
   updated_at: string;
@@ -220,6 +221,7 @@ export type Database = {
           enquiry?: string | null;
           source?: string;
           utm?: Record<string, any>;
+          ip_hash?: string | null;
           status?: Lead["status"];
           created_at?: string;
           updated_at?: string;

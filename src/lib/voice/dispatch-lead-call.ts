@@ -135,9 +135,14 @@ export async function dispatchLeadCall(
     initialBotMessage: openingMessage,
     initialStateName: options.initialStateName,
     webhookUrl: options.webhookUrl,
-    metadata: options.leadId
-      ? { lead_id: options.leadId, triggered_by: options.triggeredBy }
-      : undefined,
+    metadata: {
+      ...(options.leadId ? { lead_id: options.leadId } : {}),
+      ...(options.triggeredBy ? { triggered_by: options.triggeredBy } : {}),
+      // Echoed back by Sarvam so the webhook can reject forged posts.
+      ...(process.env.SARVAM_WEBHOOK_SECRET
+        ? { webhook_secret: process.env.SARVAM_WEBHOOK_SECRET }
+        : {}),
+    },
   });
 
   if (!result.success) {

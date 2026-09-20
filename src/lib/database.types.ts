@@ -76,6 +76,44 @@ export type KnowledgeChunk = {
   created_at: string;
 };
 
+export type Lead = {
+  id: string;
+  business_id: string;
+  ai_employee_id: string | null;
+  name: string;
+  phone: string;
+  email: string | null;
+  enquiry: string | null;
+  source: string;
+  utm: Record<string, any>;
+  status: "new" | "calling" | "contacted" | "unreachable" | "converted" | "closed";
+  created_at: string;
+  updated_at: string;
+};
+
+export type CallTranscriptTurn = {
+  role: "agent" | "user";
+  en_text: string;
+};
+
+export type CallAttempt = {
+  id: string;
+  lead_id: string;
+  business_id: string;
+  attempt_id: string;
+  interaction_id: string | null;
+  status: "dispatched" | "connected" | "no_answer" | "busy" | "failed";
+  duration: number | null;
+  failure_reason: string | null;
+  transcript: CallTranscriptTurn[] | null;
+  final_variables: Record<string, any> | null;
+  summary: string | null;
+  visit_requested: boolean | null;
+  preferred_visit_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -168,6 +206,47 @@ export type Database = {
           created_at?: string;
         };
         Update: Partial<KnowledgeChunk>;
+        Relationships: [];
+      };
+      leads: {
+        Row: Lead;
+        Insert: {
+          id?: string;
+          business_id: string;
+          ai_employee_id?: string | null;
+          name: string;
+          phone: string;
+          email?: string | null;
+          enquiry?: string | null;
+          source?: string;
+          utm?: Record<string, any>;
+          status?: Lead["status"];
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Lead>;
+        Relationships: [];
+      };
+      call_attempts: {
+        Row: CallAttempt;
+        Insert: {
+          id?: string;
+          lead_id: string;
+          business_id: string;
+          attempt_id: string;
+          interaction_id?: string | null;
+          status?: CallAttempt["status"];
+          duration?: number | null;
+          failure_reason?: string | null;
+          transcript?: CallTranscriptTurn[] | null;
+          final_variables?: Record<string, any> | null;
+          summary?: string | null;
+          visit_requested?: boolean | null;
+          preferred_visit_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<CallAttempt>;
         Relationships: [];
       };
     };

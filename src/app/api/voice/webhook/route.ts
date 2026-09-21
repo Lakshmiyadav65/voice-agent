@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 
 import type { SarvamWebhookPayload } from "@/lib/sarvam/types";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { summarizeCall } from "@/lib/voice/summarize-call";
+import { analyzeCall } from "@/lib/voice/summarize-call";
 
 const LEAD_STATUS_BY_CALL_STATUS = {
   connected: "contacted",
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ received: true, matched: false });
     }
 
-    const { summary, visitRequested, preferredVisitAt } = await summarizeCall(
+    const analysis = await analyzeCall(
       payload.interaction_transcript,
       payload.final_agent_variables
     );
@@ -65,9 +65,13 @@ export async function POST(request: Request) {
         failure_reason: payload.failure_reason,
         transcript: payload.interaction_transcript,
         final_variables: payload.final_agent_variables,
-        summary,
-        visit_requested: visitRequested,
-        preferred_visit_at: preferredVisitAt,
+        summary: analysis.summary,
+        visit_requested: analysis.visitRequested,
+        preferred_visit_at: analysis.preferredVisitAt,
+        outcome: analysis.outcome,
+        sentiment: analysis.sentiment,
+        unanswered_questions: analysis.unansweredQuestions,
+        topics: analysis.topics,
       })
       .eq("id", attempt.id);
 

@@ -111,9 +111,21 @@ export type CallAttempt = {
   summary: string | null;
   visit_requested: boolean | null;
   preferred_visit_at: string | null;
+  outcome: CallOutcomeLabel | null;
+  sentiment: "positive" | "neutral" | "negative" | null;
+  unanswered_questions: string[];
+  topics: string[];
   created_at: string;
   updated_at: string;
 };
+
+export type CallOutcomeLabel =
+  | "interested"
+  | "not_interested"
+  | "callback_requested"
+  | "wrong_number"
+  | "no_answer"
+  | "unclear";
 
 export type Database = {
   public: {
@@ -245,6 +257,10 @@ export type Database = {
           summary?: string | null;
           visit_requested?: boolean | null;
           preferred_visit_at?: string | null;
+          outcome?: CallOutcomeLabel | null;
+          sentiment?: CallAttempt["sentiment"];
+          unanswered_questions?: string[];
+          topics?: string[];
           created_at?: string;
           updated_at?: string;
         };

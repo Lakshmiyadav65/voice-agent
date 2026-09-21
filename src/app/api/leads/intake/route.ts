@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 
 import { formatE164PhoneNumber } from "@/lib/sarvam/client";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -7,6 +7,23 @@ import { dispatchLeadCall } from "@/lib/voice/dispatch-lead-call";
 import { resolveWebhookUrl } from "@/lib/voice/webhook-url";
 
 const MAX_FIELD_LENGTH = 500;
+
+// Client sites post from their own domains, so the browser preflights first.
+// Safe to allow any origin: the endpoint takes no cookies and reads no session.
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Max-Age": "86400",
+};
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
+}
+
+function json(body: unknown, status: number) {
+  return NextResponse.json(body, { status, headers: CORS_HEADERS });
+}
 
 function clean(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
@@ -18,13 +35,13 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => null);
     if (!body) {
-      return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+      return json({ error: "Invalid request body." }, 400);
     }
 
     // Bots fill every field they find; real browsers leave the hidden one empty.
     // Answer 202 anyway so they get no signal that the submission was dropped.
     if (clean(body.company_website)) {
-      return NextResponse.json({ accepted: true }, { status: 202 });
+      return json({ accepted: true }, 202);
     }
 
     const businessId = clean(body.businessId);
@@ -32,27 +49,24 @@ export async function POST(request: Request) {
     const rawPhone = clean(body.phone);
 
     if (!businessId || !name || !rawPhone) {
-      return NextResponse.json(
-        { error: "businessId, name and phone are required." },
-        { status: 400 }
-      );
+      return json({ error: "businessId, name and phone are required." }, 400);
     }
 
     const phone = formatE164PhoneNumber(rawPhone);
     if (!/^\+\d{8,15}$/.test(phone)) {
-      return NextResponse.json({ error: "Enter a valid phone number." }, { status: 400 });
+      return json({ error: "Enter a valid phone number." }, 400);
     }
 
     const ipHash = hashIp(clientIpFrom(request));
 
     const verdict = await checkSubmissionAllowed(phone, ipHash);
     if (!verdict.allowed) {
-      return NextResponse.json({ error: verdict.reason }, { status: 429 });
+      return json({ error: verdict.reason }, 429);
     }
 
     const supabase = createAdminClient();
     if (!supabase) {
-      return NextResponse.json({ error: "Service unavailable." }, { status: 503 });
+      return json({ error: "Service unavailable." }, 503);
     }
 
     const { data: business } = await supabase
@@ -62,7 +76,7 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (!business) {
-      return NextResponse.json({ error: "Unknown business." }, { status: 404 });
+      return json({ error: "Unknown business." }, 404);
     }
 
     const aiEmployeeId = clean(body.aiEmployeeId);
@@ -86,7 +100,7 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError || !lead) {
-      return NextResponse.json({ error: "Could not record your request." }, { status: 500 });
+      return json({ error: "Could not record your request." }, 500);
     }
 
     const result = await dispatchLeadCall({
@@ -101,7 +115,7 @@ export async function POST(request: Request) {
     if (!result.success) {
       // The lead is already saved, so the business can still follow up by hand.
       await supabase.from("leads").update({ status: "unreachable" }).eq("id", lead.id);
-      return NextResponse.json({ accepted: true, called: false, leadId: lead.id }, { status: 202 });
+      return json({ accepted: true, called: false, leadId: lead.id }, 202);
     }
 
     await supabase
@@ -115,11 +129,8 @@ export async function POST(request: Request) {
 
     await supabase.from("leads").update({ status: "calling" }).eq("id", lead.id);
 
-    return NextResponse.json(
-      { accepted: true, called: true, leadId: lead.id },
-      { status: 202 }
-    );
+    return json({ accepted: true, called: true, leadId: lead.id }, 202);
   } catch {
-    return NextResponse.json({ error: "Could not process your request." }, { status: 500 });
+    return json({ error: "Could not process your request." }, 500);
   }
 }

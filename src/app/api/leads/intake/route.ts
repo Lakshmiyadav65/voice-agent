@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 import { formatE164PhoneNumber } from "@/lib/sarvam/client";
 import { createAdminClient } from "@/lib/supabase/admin";

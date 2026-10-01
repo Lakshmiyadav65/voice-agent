@@ -15,7 +15,7 @@ export function AppSectionPage({ meta, children, showEmpty = true }: AppSectionP
         title={meta.title}
         description={meta.description}
         breadcrumbs={meta.breadcrumbs}
-        badge={meta.comingInPhase ? `Arrives in ${meta.comingInPhase}` : undefined}
+        badge={meta.comingInPhase ? "Coming soon" : undefined}
       />
 
       {children}
@@ -23,7 +23,7 @@ export function AppSectionPage({ meta, children, showEmpty = true }: AppSectionP
       {meta.features && meta.features.length > 0 ? (
         <section className="mt-8 border-t border-border pt-6">
           <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-            Planned capabilities
+            What this will do
           </h2>
           <ul className="mt-4 grid gap-2 sm:grid-cols-2">
             {meta.features.map((feature) => (

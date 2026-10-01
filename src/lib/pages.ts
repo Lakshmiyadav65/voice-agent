@@ -11,7 +11,7 @@ export type PageMeta = {
 export const ownerPages = {
   dashboard: {
     title: "Dashboard",
-    description: "Overview of your AI employee performance and today's activity.",
+    description: "Your leads, what happened on their calls, and your setup — at a glance.",
   },
   aiEmployee: {
     title: "AI Employee",
@@ -26,21 +26,17 @@ export const ownerPages = {
   },
   calls: {
     title: "Calls",
-    description: "Inbound and outbound call history with transcripts and outcomes.",
+    description: "How your AI employee's calls are going: pick-up rate, outcomes, and what customers ask about.",
     breadcrumbs: [{ label: "Dashboard", href: "/dashboard" }, { label: "Calls" }],
-    comingInPhase: "Phase 10",
     emptyTitle: "No calls yet",
-    emptyDescription: "When your AI employee starts handling calls, they will appear here with transcripts and summaries.",
-    features: ["Call list with duration and outcome", "Transcript and summary", "Recording playback where permitted"],
+    emptyDescription: "When your AI employee starts calling leads, the numbers and outcomes appear here.",
   },
   leads: {
     title: "Leads",
-    description: "Qualified leads captured from conversations with intent and contact details.",
+    description: "Everyone who filled your lead form, with the summary of their call.",
     breadcrumbs: [{ label: "Dashboard", href: "/dashboard" }, { label: "Leads" }],
-    comingInPhase: "Phase 12",
     emptyTitle: "No leads yet",
-    emptyDescription: "Leads qualified during AI calls will be listed here with source, budget, and follow-up status.",
-    features: ["Lead score and intent", "Source (call, WhatsApp, form)", "CRM sync status"],
+    emptyDescription: "When someone fills your lead form, they appear here along with what happened on their call.",
   },
   whatsapp: {
     title: "WhatsApp",
@@ -53,12 +49,10 @@ export const ownerPages = {
   },
   appointments: {
     title: "Appointments",
-    description: "Bookings made by your AI employee during customer conversations.",
+    description: "Leads who asked to visit or book a time during their call.",
     breadcrumbs: [{ label: "Dashboard", href: "/dashboard" }, { label: "Appointments" }],
-    comingInPhase: "Phase 12",
     emptyTitle: "No appointments yet",
-    emptyDescription: "Appointments booked through voice or follow-up flows will show here with time and customer.",
-    features: ["Calendar sync status", "Confirmation sent via WhatsApp", "Reschedule and cancel actions"],
+    emptyDescription: "When a lead asks to visit or book a time on a call, they appear here with their preferred time.",
   },
   businessHub: {
     title: "Business Information",

@@ -38,8 +38,11 @@ function countInto(map: Map<string, number>, values: string[]) {
 }
 
 export async function getCallStats(businessId: string): Promise<CallStats> {
-  const attempts = await fetchAttempts(businessId);
+  return summarizeAttempts(await fetchAttempts(businessId));
+}
 
+/** Pure, so pages can summarise any filtered slice of calls they already loaded. */
+export function summarizeAttempts(attempts: CallAttempt[]): CallStats {
   const connectedCalls = attempts.filter((a) => a.status === "connected");
   const withDuration = connectedCalls.filter((a) => typeof a.duration === "number");
   const totalDuration = withDuration.reduce((sum, a) => sum + (a.duration ?? 0), 0);

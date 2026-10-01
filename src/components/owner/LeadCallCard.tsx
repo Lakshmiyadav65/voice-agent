@@ -1,5 +1,6 @@
 import type { CallAttempt, Lead } from "@/lib/database.types";
 import { secondsToFirstCall, type LeadWithCalls } from "@/lib/data/leads";
+import { formatSeconds } from "@/lib/format";
 import { campaignOf, sourceLabel } from "@/lib/leads/attribution";
 
 const STATUS_STYLES: Record<Lead["status"], string> = {
@@ -17,12 +18,6 @@ function formatDateTime(value: string | null): string | null {
     dateStyle: "medium",
     timeStyle: "short",
   });
-}
-
-function formatWait(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  const mins = Math.floor(seconds / 60);
-  return mins < 60 ? `${mins}m ${seconds % 60}s` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
 
 type LeadCallCardProps = {
@@ -73,7 +68,7 @@ export function LeadCallCard({ lead, attempt }: LeadCallCardProps) {
         {waited !== null ? (
           <span className="rounded-full border border-border px-2.5 py-1 text-foreground">
             <span className="text-muted">Called in: </span>
-            {formatWait(waited)}
+            {formatSeconds(waited)}
           </span>
         ) : null}
       </div>

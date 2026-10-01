@@ -1,16 +1,31 @@
 import Link from "next/link";
 
+import { ActivityChart } from "@/components/owner/ActivityChart";
 import { AiEmployeeStatusCard } from "@/components/owner/AiEmployeeStatusCard";
 import { LeadCallCard } from "@/components/owner/LeadCallCard";
+import { SourceBreakdownTable } from "@/components/owner/SourceBreakdownTable";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
 import { requireDashboardAccess } from "@/lib/auth/session";
-import { getCallStats } from "@/lib/data/call-analytics";
-import { getBusinessLeads, latestAttempt } from "@/lib/data/leads";
+import { summarizeAttempts } from "@/lib/data/call-analytics";
+import {
+  dailyActivity,
+  getBusinessLeads,
+  istDay,
+  istToday,
+  latestAttempt,
+  medianSecondsToCall,
+  sourceBreakdown,
+} from "@/lib/data/leads";
 import { getOwnerWorkspace } from "@/lib/data/workspace";
+import { formatSeconds } from "@/lib/format";
 import { ownerPages } from "@/lib/pages";
 
 const RECENT_LEADS = 3;
+const CHART_DAYS = 14;
+const TOP_SOURCES = 5;
+// Enough history for two weeks of charts without paging.
+const ANALYTICS_LEAD_LIMIT = 1000;
 
 function SectionHeading({ title, description }: { title: string; description: string }) {
   return (
@@ -27,11 +42,16 @@ export default async function DashboardPage() {
   const business = workspace.primaryBusiness;
   const primaryEmployee = workspace.aiEmployees[0] ?? null;
 
-  const [stats, leads] = business
-    ? await Promise.all([getCallStats(business.id), getBusinessLeads(business.id)])
-    : [null, []];
+  const leads = business ? await getBusinessLeads(business.id, ANALYTICS_LEAD_LIMIT) : [];
+  // Derived from the same rows as the chart so every number on the page agrees.
+  const stats = summarizeAttempts(leads.flatMap((lead) => lead.call_attempts ?? []));
 
-  const interested = stats?.outcomes.find((row) => row.label === "interested")?.count ?? 0;
+  const today = istToday();
+  const leadsToday = leads.filter((lead) => istDay(lead.created_at) === today);
+  const interested = stats.outcomes.find((row) => row.label === "interested")?.count ?? 0;
+  const medianWait = medianSecondsToCall(leads);
+  const days = dailyActivity(leads, CHART_DAYS);
+  const sources = sourceBreakdown(leads);
   const recentLeads = leads.slice(0, RECENT_LEADS);
 
   return (
@@ -44,27 +64,55 @@ export default async function DashboardPage() {
       <section>
         <SectionHeading
           title="Results"
-          description="What your AI employee has done with the leads from your ads."
+          description={`What your AI employee has done with your leads. The chart covers the last ${CHART_DAYS} days.`}
         />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Leads" value={String(leads.length)} hint="Form submissions" />
           <StatCard
-            label="Calls made"
-            value={String(stats?.total ?? 0)}
-            hint={
-              stats?.total
-                ? `${Math.round(stats.connectRate * 100)}% picked up`
-                : "No calls yet"
-            }
+            label="Leads today"
+            value={String(leadsToday.length)}
+            hint={`${leads.length} in total`}
           />
-          <StatCard label="Interested" value={String(interested)} hint="From call analysis" />
           <StatCard
-            label="Visit requests"
-            value={String(stats?.visitRequests ?? 0)}
-            hint="Asked to visit or book"
+            label="Pick-up rate"
+            value={stats.total ? `${Math.round(stats.connectRate * 100)}%` : "—"}
+            hint={stats.total ? `${stats.connected} of ${stats.total} calls` : "No calls yet"}
+          />
+          <StatCard
+            label="Interested"
+            value={String(interested)}
+            hint={`${stats.visitRequests ?? 0} asked to visit`}
+          />
+          <StatCard
+            label="Time to call"
+            value={medianWait === null ? "—" : formatSeconds(medianWait)}
+            hint="Typical wait from form to call"
           />
         </div>
+
+        <div className="mt-6">
+          <ActivityChart days={days} />
+        </div>
       </section>
+
+      {sources.length > 0 ? (
+        <section className="mt-10 border-t border-border pt-8">
+          <div className="flex items-start justify-between gap-4">
+            <SectionHeading
+              title="Where your leads come from"
+              description="Which ads bring leads, and how many of them pick up and show interest."
+            />
+            {sources.length > TOP_SOURCES ? (
+              <Link
+                href="/dashboard/leads"
+                className="shrink-0 text-sm font-semibold text-accent hover:underline"
+              >
+                All {sources.length} sources →
+              </Link>
+            ) : null}
+          </div>
+          <SourceBreakdownTable rows={sources.slice(0, TOP_SOURCES)} />
+        </section>
+      ) : null}
 
       <section className="mt-10 border-t border-border pt-8">
         <div className="flex items-start justify-between gap-4">

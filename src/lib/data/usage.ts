@@ -20,7 +20,11 @@ export async function getUsage(businessId: string): Promise<Usage | null> {
   const supabase = createAdminClient();
   if (!supabase) return null;
 
-  const since = new Date(Date.now() - DAYS * 86_400_000).toISOString();
+  const monthPrefix = istDay(Date.now()).slice(0, 7);
+  // Reach back to the 1st even on the 31st, or "This month" would drop day one.
+  const since = new Date(
+    Math.min(Date.now() - DAYS * 86_400_000, Date.parse(`${monthPrefix}-01T00:00:00+05:30`))
+  ).toISOString();
   const [balancePaise, { data: business }, { data: calls }, { data: ledger }] = await Promise.all([
     getBalancePaise(supabase, businessId),
     supabase.from("businesses").select("rate_per_minute_paise").eq("id", businessId).maybeSingle(),
@@ -45,8 +49,7 @@ export async function getUsage(businessId: string): Promise<Usage | null> {
     days.set(day, { day, calls: 0, minutes: 0, spendPaise: 0 });
   }
 
-  const monthPrefix = istDay(Date.now()).slice(0, 7);
-  const month = { calls: 0, minutes: 0, spendPaise: 0 };
+  const month ={ calls: 0, minutes: 0, spendPaise: 0 };
 
   for (const call of calls ?? []) {
     const day = istDay(call.created_at);

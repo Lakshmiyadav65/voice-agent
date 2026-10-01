@@ -1,8 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import type { AiEmployee, Business, KnowledgeDocument } from "@/lib/database.types";
-import { AgentSettingsEditor } from "./AgentSettingsEditor";
 import { CaptureFieldsEditor } from "./CaptureFieldsEditor";
 import { CreateEmployeeModal } from "./CreateEmployeeModal";
 import { VoiceRecorder } from "../rag/VoiceRecorder";
@@ -22,7 +22,7 @@ export function AiEmployeeManager({
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(
     initialEmployees[0]?.id || ""
   );
-  const [activeTab, setActiveTab] = useState<"speak" | "upload" | "capture" | "voice" | "simulate">("speak");
+  const [activeTab, setActiveTab] = useState<"speak" | "upload" | "capture" | "simulate">("speak");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // Business Name state synced with VoiceRecorder and database
@@ -193,7 +193,7 @@ export function AiEmployeeManager({
       {/* Main Flow */}
       {selectedEmployee ? (
         <div className="space-y-6">
-          {/* Workflow Tabs: Speak, Documents, What to Find Out, Voice & Behaviour, Call */}
+          {/* Workflow Tabs: Speak, Documents, What to Find Out, Call (voice settings live in the agent editor) */}
           <div className="flex flex-wrap items-center gap-2 border-b border-border pb-1">
             <button
               type="button"
@@ -243,18 +243,13 @@ export function AiEmployeeManager({
               ) : null}
             </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab("voice")}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === "voice"
-                  ? "bg-accent text-white shadow-xs"
-                  : "bg-surface text-muted hover:bg-background hover:text-ink border border-border"
-              }`}
+            <Link
+              href={`/dashboard/agents/${selectedEmployee.id}?section=settings`}
+              className="flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-xs font-semibold text-muted transition-all hover:bg-background hover:text-ink"
             >
               <span>🔊</span>
-              <span>4. Voice & Behaviour</span>
-            </button>
+              <span>Voice & behaviour ↗</span>
+            </Link>
 
             <button
               type="button"
@@ -266,7 +261,7 @@ export function AiEmployeeManager({
               }`}
             >
               <span>📞</span>
-              <span>5. Outbound Voice Calling</span>
+              <span>4. Outbound Voice Calling</span>
             </button>
           </div>
 
@@ -309,22 +304,7 @@ export function AiEmployeeManager({
             />
           )}
 
-          {/* Tab 4: Voice & Behaviour */}
-          {activeTab === "voice" && (
-            <AgentSettingsEditor
-              key={selectedEmployee.id}
-              aiEmployeeId={selectedEmployee.id}
-              employeeName={selectedEmployee.name}
-              initialSettings={selectedEmployee.agent_settings}
-              onSaved={(settings) =>
-                setEmployees((list) =>
-                  list.map((e) => (e.id === selectedEmployee.id ? { ...e, agent_settings: settings } : e))
-                )
-              }
-            />
-          )}
-
-          {/* Tab 5: Outbound Voice Calling */}
+          {/* Tab 4: Outbound Voice Calling */}
           {activeTab === "simulate" && (
             <LeadCallSimulator
               aiEmployeeId={selectedEmployee.id}

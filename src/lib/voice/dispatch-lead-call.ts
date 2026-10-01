@@ -1,8 +1,9 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { triggerLeadCall } from "@/lib/sarvam/client";
-import { toSarvamOverrides } from "@/lib/sarvam/agent-settings";
+import { toSarvamOverrides, toSarvamVariables } from "@/lib/sarvam/agent-settings";
 import {
   DEFAULT_AGENT_SETTINGS,
+  effectiveInstructions,
   fillTemplate,
   sanitizeAgentSettings,
   type AgentSettings,
@@ -28,7 +29,7 @@ export type DispatchLeadCallResult =
   | { success: true; attemptId?: string; businessName: string; openingMessage: string }
   | { success: false; error: string };
 
-type ResolvedContext = {
+export type ResolvedContext = {
   businessName: string;
   businessType: string;
   employeeName: string;
@@ -41,7 +42,7 @@ type ResolvedContext = {
  * Sarvam receives business facts as a single prose blob, so knowledge documents
  * are flattened rather than passed as structured records.
  */
-async function resolveEmployeeContext(aiEmployeeId?: string | null): Promise<ResolvedContext> {
+export async function resolveEmployeeContext(aiEmployeeId?: string | null): Promise<ResolvedContext> {
   const context: ResolvedContext = {
     businessName: "Our Business",
     businessType: "Consumer & Commercial Services",
@@ -106,6 +107,51 @@ async function resolveEmployeeContext(aiEmployeeId?: string | null): Promise<Res
   return context;
 }
 
+export type CallBrief = {
+  /** Every {{variable}} value for this call: built-ins win over the owner's custom ones. */
+  values: Record<string, string>;
+  knowledge: string;
+  greeting: string;
+  /** The full instructions with every variable filled, as the agent should read them. */
+  instructions: string;
+};
+
+/**
+ * Everything the agent is told for one call, in provider-neutral form. Real calls,
+ * the test chat and automated tests all use this, so a test sees exactly what a
+ * call would.
+ */
+export function buildCallBrief(
+  context: ResolvedContext,
+  lead: { name: string; phone: string; reason?: string },
+  greetingOverride?: string
+): CallBrief {
+  const facts =
+    context.knowledge ||
+    `Business Name: ${context.businessName}\nRepresentative: ${context.employeeName}\nType: ${context.businessType}\nRole: Sales, Lead Inquiries, and Customer Support.`;
+  const knowledge = [facts, context.captureBriefing].filter(Boolean).join("\n\n");
+
+  const custom = Object.fromEntries(context.settings.variables.map((v) => [v.key, v.value]));
+  const values: Record<string, string> = {
+    ...custom,
+    business_name: context.businessName,
+    business_type: context.businessType,
+    business_description: knowledge,
+    lead_name: lead.name,
+    lead_phone: lead.phone,
+    preferred_language: context.settings.startingLanguage,
+    lead_enquiry: lead.reason || "Inquiry regarding services and pricing",
+    interested_product: "Services & Products from catalog",
+  };
+
+  return {
+    values,
+    knowledge,
+    greeting: fillTemplate(greetingOverride || context.settings.greeting, values),
+    instructions: fillTemplate(effectiveInstructions(context.settings), values),
+  };
+}
+
 export async function dispatchLeadCall(
   options: DispatchLeadCallOptions
 ): Promise<DispatchLeadCallResult> {
@@ -117,29 +163,16 @@ export async function dispatchLeadCall(
 
   const context = await resolveEmployeeContext(options.aiEmployeeId);
 
-  const facts =
-    context.knowledge ||
-    `Business Name: ${context.businessName}\nRepresentative: ${context.employeeName}\nType: ${context.businessType}\nRole: Sales, Lead Inquiries, and Customer Support.`;
-  // Rides inside business_description because that variable already exists on the
-  // Sarvam canvas; a new variable would need console work for every field change.
-  const knowledge = [facts, context.captureBriefing].filter(Boolean).join("\n\n");
-
-  const openingMessage = fillTemplate(options.initialBotMessage || context.settings.greeting, {
-    business_name: context.businessName,
-    lead_name: customerName,
-  });
+  const brief = buildCallBrief(
+    context,
+    { name: customerName, phone: options.phoneNumber, reason: options.reason },
+    options.initialBotMessage
+  );
+  const openingMessage = brief.greeting;
   const overrides = toSarvamOverrides(context.settings, openingMessage);
 
-  // Keys mirror the variable names configured on the Sarvam agent canvas.
   const agentVariables: Record<string, any> = {
-    business_name: context.businessName,
-    business_type: context.businessType,
-    business_description: knowledge,
-    lead_name: customerName,
-    lead_phone: options.phoneNumber,
-    preferred_language: context.settings.startingLanguage,
-    lead_enquiry: options.reason || "Inquiry regarding services and pricing",
-    interested_product: "Services & Products from catalog",
+    ...toSarvamVariables(brief, context.settings),
     ...(options.agentVariables || {}),
   };
 

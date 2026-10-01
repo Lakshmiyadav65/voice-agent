@@ -18,20 +18,18 @@ import {
 } from "@/lib/voice/agent-settings";
 
 type Props = {
-  aiEmployeeId: string;
-  employeeName: string;
-  initialSettings: unknown;
-  onSaved: (settings: AgentSettings) => void;
+  settings: AgentSettings;
+  onChange: (settings: AgentSettings) => void;
 };
 
-const input =
+export const input =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-ink outline-hidden focus:border-accent";
 
 function voiceLabel(id: string) {
   return id.charAt(0).toUpperCase() + id.slice(1);
 }
 
-function LiveBadge({ setting }: { setting: keyof AgentSettings }) {
+export function LiveBadge({ setting }: { setting: keyof AgentSettings }) {
   if (!SARVAM_PER_CALL_SETTINGS.includes(setting)) return null;
   return (
     <span className="ml-2 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
@@ -40,7 +38,7 @@ function LiveBadge({ setting }: { setting: keyof AgentSettings }) {
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="space-y-1 border-t border-border pt-5 first:border-t-0 first:pt-0">
       <h4 className="font-display text-base font-semibold text-ink">{title}</h4>
@@ -49,7 +47,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Row({
+export function Row({
   label,
   hint,
   badge,
@@ -74,7 +72,7 @@ function Row({
   );
 }
 
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+export function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <button
       type="button"
@@ -180,18 +178,12 @@ function parseDictionary(json: unknown): AgentSettings["pronunciations"] {
   return rows;
 }
 
-export function AgentSettingsEditor({ aiEmployeeId, employeeName, initialSettings, onSaved }: Props) {
-  const [settings, setSettings] = useState<AgentSettings>(() => sanitizeAgentSettings(initialSettings));
-  const [saved, setSaved] = useState<AgentSettings>(settings);
-  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+export function SettingsSection({ settings, onChange }: Props) {
   const [error, setError] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const dirty = JSON.stringify(settings) !== JSON.stringify(saved);
-
   function set<K extends keyof AgentSettings>(key: K, value: AgentSettings[K]) {
-    setSettings((s) => ({ ...s, [key]: value }));
-    setStatus("idle");
+    onChange({ ...settings, [key]: value });
   }
 
   function toggleLanguage(language: AgentLanguage) {
@@ -215,62 +207,11 @@ export function AgentSettingsEditor({ aiEmployeeId, employeeName, initialSetting
     }
   }
 
-  async function save() {
-    if (settings.callForwarding.enabled && settings.callForwarding.number.replace(/\D/g, "").length < 10) {
-      setError("Add the number to forward calls to, or turn call forwarding off.");
-      return;
-    }
-    setStatus("saving");
-    setError("");
-    try {
-      const res = await fetch(`/api/ai-employees/${aiEmployeeId}/agent-settings`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ settings }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? "Could not save.");
-      setSettings(data.settings);
-      setSaved(data.settings);
-      onSaved(data.settings);
-      setStatus("saved");
-    } catch (err) {
-      setError((err as Error).message);
-      setStatus("error");
-    }
-  }
-
   const { nudges, voicemail, callForwarding, perLanguageVoices } = settings;
 
   return (
-    <div className="space-y-5 rounded-2xl border border-border bg-surface p-4 sm:p-6">
-      <div>
-        <h3 className="font-display text-xl font-semibold text-ink">How {employeeName} sounds and behaves</h3>
-        <p className="mt-1 text-sm text-muted">
-          These settings belong to your account and stay the same if the voice platform changes. Ones marked{" "}
-          <span className="font-semibold text-emerald-800">Live on calls</span> reach every call now; the rest are
-          saved and applied when the voice platform is connected.
-        </p>
-      </div>
-
-      <Section title="Greeting">
-        <div className="space-y-2 py-4">
-          <p className="text-sm font-medium text-ink">
-            Opening line
-            <LiveBadge setting="greeting" />
-          </p>
-          <textarea
-            value={settings.greeting}
-            maxLength={LIMITS.text}
-            rows={2}
-            onChange={(e) => set("greeting", e.target.value)}
-            className={input}
-          />
-          <p className="text-xs text-muted">
-            Use {"{{business_name}}"} and {"{{lead_name}}"}; they are filled in for each call.
-          </p>
-        </div>
-      </Section>
+    <div className="space-y-5">
+      {error ? <p className="rounded-lg bg-warn/5 px-3 py-2 text-sm text-warn">{error}</p> : null}
 
       <Section title="Speaking">
         <Row label="Voice" hint="Who your agent sounds like">
@@ -509,14 +450,13 @@ export function AgentSettingsEditor({ aiEmployeeId, employeeName, initialSetting
             aria-label="Starting language"
             onChange={(e) => {
               const language = e.target.value as AgentLanguage;
-              setSettings((s) => ({
-                ...s,
+              onChange({
+                ...settings,
                 startingLanguage: language,
-                allowedLanguages: s.allowedLanguages.includes(language)
-                  ? s.allowedLanguages
-                  : [language, ...s.allowedLanguages],
-              }));
-              setStatus("idle");
+                allowedLanguages: settings.allowedLanguages.includes(language)
+                  ? settings.allowedLanguages
+                  : [language, ...settings.allowedLanguages],
+              });
             }}
             className={input}
           >
@@ -707,21 +647,6 @@ export function AgentSettingsEditor({ aiEmployeeId, employeeName, initialSetting
         </Row>
       </Section>
 
-      <div className="sticky bottom-0 -mx-4 flex flex-wrap items-center gap-3 border-t border-border bg-surface px-4 py-4 sm:-mx-6 sm:px-6">
-        <button
-          type="button"
-          onClick={save}
-          disabled={!dirty || status === "saving"}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent/90 disabled:opacity-50"
-        >
-          {status === "saving" ? "Saving…" : "Save"}
-        </button>
-        {dirty && status !== "saving" ? <span className="text-sm text-muted">Unsaved changes</span> : null}
-        {status === "saved" && !dirty ? (
-          <span className="text-sm text-accent">Saved. Applies from the next call.</span>
-        ) : null}
-        {error ? <span className="text-sm text-warn">{error}</span> : null}
-      </div>
     </div>
   );
 }

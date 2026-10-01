@@ -13,7 +13,19 @@ export type NavGroup = {
 export const ownerNav: NavGroup[] = [
   {
     label: "Overview",
-    items: [{ label: "Dashboard", href: "/dashboard" }],
+    items: [{ label: "Home", href: "/dashboard" }],
+  },
+  {
+    label: "Build",
+    items: [
+      { label: "Agents", href: "/dashboard/agents" },
+      { label: "Knowledge base", href: "/dashboard/ai-employee" },
+      { label: "Business Information", href: "/dashboard/business", soon: true },
+    ],
+  },
+  {
+    label: "Deploy",
+    items: [{ label: "Campaigns", href: "/dashboard/campaigns" }],
   },
   {
     label: "Results",
@@ -22,17 +34,6 @@ export const ownerNav: NavGroup[] = [
       { label: "Calls", href: "/dashboard/calls" },
       { label: "Appointments", href: "/dashboard/appointments" },
       { label: "WhatsApp", href: "/dashboard/whatsapp", soon: true },
-    ],
-  },
-  {
-    label: "Outreach",
-    items: [{ label: "Campaigns", href: "/dashboard/campaigns" }],
-  },
-  {
-    label: "Set up",
-    items: [
-      { label: "AI Employee", href: "/dashboard/ai-employee" },
-      { label: "Business Information", href: "/dashboard/business", soon: true },
     ],
   },
   {

@@ -51,6 +51,7 @@ export type AiEmployee = {
   capture_fields: CaptureField[];
   // Provider-neutral; read through sanitizeAgentSettings, which fills defaults.
   agent_settings: Json;
+  agent_tests: Json;
   created_at: string;
   updated_at: string;
 };
@@ -287,6 +288,7 @@ export type Database = {
           current_version_id?: string | null;
           capture_fields?: CaptureField[];
           agent_settings?: Json;
+          agent_tests?: Json;
           created_at?: string;
           updated_at?: string;
         };

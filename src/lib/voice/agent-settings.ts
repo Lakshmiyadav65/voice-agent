@@ -43,9 +43,22 @@ export const BACKGROUND_SOUND_LABELS: Record<BackgroundSound, string> = {
 };
 
 export type Nudge = { text: string; afterSeconds: number };
+export type AgentVariable = { key: string; value: string; description: string };
+export type ToolParam = { name: string; description: string; required: boolean };
+export type AgentTool = {
+  name: string;
+  whenToUse: string;
+  method: "GET" | "POST";
+  url: string;
+  params: ToolParam[];
+};
 export type Pronunciation = { language: AgentLanguage; word: string; sayAs: string };
 
 export type AgentSettings = {
+  // Instructions: empty means the platform's standard instructions.
+  instructions: string;
+  variables: AgentVariable[];
+  tools: AgentTool[];
   greeting: string;
   // Speaking
   voice: string;
@@ -86,12 +99,51 @@ export const LIMITS = {
   nudges: 5,
   pronunciations: 200,
   text: 300,
+  instructions: 8000,
+  variables: 20,
+  tools: 10,
+  toolParams: 10,
 } as const;
+
+/**
+ * Values every call fills in automatically. Custom variables cannot reuse these
+ * names, so an owner never shadows the lead's name with a fixed value.
+ */
+export const BUILT_IN_VARIABLES: { key: string; description: string }[] = [
+  { key: "business_name", description: "Your business name" },
+  { key: "business_type", description: "Your business category" },
+  { key: "business_description", description: "Everything the agent learned from your knowledge base" },
+  { key: "lead_name", description: "The name of the person being called" },
+  { key: "lead_phone", description: "Their phone number" },
+  { key: "preferred_language", description: "The starting language from Settings" },
+  { key: "lead_enquiry", description: "What they asked about in the form or ad" },
+  { key: "interested_product", description: "The product or service they are interested in" },
+];
+
+/** The standard instructions every agent starts from; owners can rewrite them. */
+export const DEFAULT_INSTRUCTIONS = `You are an AI voice sales and customer-engagement assistant for {{business_name}}.
+Your role is to call leads on behalf of the business, understand their requirements, answer questions using the business's knowledge, qualify the lead, and record the outcome of the conversation.
+
+CONVERSATION OBJECTIVE
+- Politely introduce yourself and the business, and confirm you are speaking with {{lead_name}}.
+- Ask whether it is a convenient time to talk.
+- Understand the reason for their enquiry ({{lead_enquiry}}) and ask one question at a time about their needs.
+- Answer questions using only the business knowledge. Never invent prices, offers, availability or policies; if you do not know, say so and offer a callback from the team.
+- Qualify the lead as HOT, WARM, COLD or NOT INTERESTED and agree the next step.
+
+STYLE
+- Speak naturally and professionally, keep replies short, and do not repeat questions already answered.
+- Use the customer's preferred language ({{preferred_language}}) and follow them if they switch.
+- If asked, say clearly that you are an AI assistant calling on behalf of {{business_name}}.
+- If they are not interested, do not pressure them; thank them and end the call politely.`;
 
 export const DEFAULT_GREETING =
   "Hello! I am calling from {{business_name}} regarding your recent inquiry. Am I speaking with {{lead_name}}?";
 
 export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
+  instructions: "",
+  variables: [],
+  tools: [],
   greeting: DEFAULT_GREETING,
   voice: "shubh",
   perLanguageVoices: { enabled: false, voices: {} },
@@ -153,6 +205,71 @@ function obj(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
+export function keyFromName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40);
+}
+
+function sanitizeVariables(value: unknown): AgentVariable[] {
+  if (!Array.isArray(value)) return [];
+  const reserved = new Set(BUILT_IN_VARIABLES.map((v) => v.key));
+  const seen = new Set<string>();
+  const out: AgentVariable[] = [];
+  for (const item of value) {
+    const v = obj(item);
+    const key = keyFromName(typeof v.key === "string" ? v.key : "");
+    if (!key || reserved.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ key, value: text(v.value, ""), description: text(v.description, "").slice(0, 160) });
+    if (out.length === LIMITS.variables) break;
+  }
+  return out;
+}
+
+function sanitizeTools(value: unknown): AgentTool[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const out: AgentTool[] = [];
+  for (const item of value) {
+    const t = obj(item);
+    const name = keyFromName(typeof t.name === "string" ? t.name : "");
+    const url = text(t.url, "").slice(0, 500);
+    // Only public https endpoints: a tool URL is called by the voice provider, never by us.
+    if (!name || seen.has(name) || !/^https:\/\/[^\s/]+\.[^\s]+$/i.test(url)) continue;
+    seen.add(name);
+    const params = Array.isArray(t.params)
+      ? t.params
+          .map((p) => {
+            const raw = obj(p);
+            return {
+              name: keyFromName(typeof raw.name === "string" ? raw.name : ""),
+              description: text(raw.description, "").slice(0, 160),
+              required: bool(raw.required, false),
+            };
+          })
+          .filter((p) => p.name)
+          .slice(0, LIMITS.toolParams)
+      : [];
+    out.push({
+      name,
+      whenToUse: text(t.whenToUse, ""),
+      method: t.method === "GET" ? "GET" : "POST",
+      url,
+      params,
+    });
+    if (out.length === LIMITS.tools) break;
+  }
+  return out;
+}
+
+/** The instructions the agent actually follows: the owner's own, or the standard ones. */
+export function effectiveInstructions(settings: AgentSettings): string {
+  return settings.instructions.trim() || DEFAULT_INSTRUCTIONS;
+}
+
 /**
  * Fills gaps with defaults and clamps everything into range, so stored JSON from
  * any era (or a hand-edited request) is always safe to hand to a provider.
@@ -205,7 +322,14 @@ export function sanitizeAgentSettings(value: unknown): AgentSettings {
   const forwarding = obj(raw.callForwarding);
   const forwardNumber = text(forwarding.number, "").replace(/[^\d+]/g, "").slice(0, 16);
 
+  const instructions =
+    typeof raw.instructions === "string" ? raw.instructions.trim().slice(0, LIMITS.instructions) : "";
+
   return {
+    // Saving the standard text unchanged stays "standard", so later improvements reach it.
+    instructions: instructions === DEFAULT_INSTRUCTIONS ? "" : instructions,
+    variables: sanitizeVariables(raw.variables),
+    tools: sanitizeTools(raw.tools),
     greeting: text(raw.greeting, d.greeting) || d.greeting,
     voice: isVoice(raw.voice) ? raw.voice : d.voice,
     perLanguageVoices: { enabled: bool(plv.enabled, d.perLanguageVoices.enabled), voices: voiceMap },
@@ -249,4 +373,21 @@ export function sanitizeAgentSettings(value: unknown): AgentSettings {
 /** Replaces {{name}} placeholders; unknown ones are left in place so mistakes stay visible. */
 export function fillTemplate(template: string, values: Record<string, string>): string {
   return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, key: string) => values[key] ?? match);
+}
+
+/**
+ * Applies a partial edit. Grouped settings (nudges, voicemail...) merge one level
+ * deep so changing one part of a group keeps the rest; lists replace whole.
+ */
+export function mergeAgentSettings(current: AgentSettings, changes: unknown): AgentSettings {
+  const patch = obj(changes);
+  const merged: Record<string, unknown> = { ...current };
+  for (const [key, value] of Object.entries(patch)) {
+    const existing = (current as Record<string, unknown>)[key];
+    merged[key] =
+      existing && typeof existing === "object" && !Array.isArray(existing) && value && typeof value === "object" && !Array.isArray(value)
+        ? { ...existing, ...value }
+        : value;
+  }
+  return sanitizeAgentSettings(merged);
 }

@@ -61,6 +61,11 @@ export const ownerPages = {
     emptyTitle: "No campaigns yet",
     emptyDescription: "Create a campaign to call a list of past customers, enquiries or event sign-ups in one go.",
   },
+  usage: {
+    title: "Usage & credits",
+    description: "Your call credit balance, what each day of calling cost, and every top-up and charge.",
+    breadcrumbs: [{ label: "Dashboard", href: "/dashboard" }, { label: "Usage & credits" }],
+  },
   businessHub: {
     title: "Business Information",
     description: "Manage the facts your AI employee uses — products, prices, stock, offers, and documents.",

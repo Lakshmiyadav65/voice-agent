@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { loadAccessibleEmployee } from "@/lib/auth/access";
 import { getSessionContext } from "@/lib/auth/session";
+import { canPlaceCall } from "@/lib/billing/credits";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { dispatchLeadCall } from "@/lib/voice/dispatch-lead-call";
 import { resolveWebhookUrl } from "@/lib/voice/webhook-url";
@@ -38,6 +39,11 @@ export async function POST(request: Request) {
       if (lead?.business_id !== employee.business_id) {
         return NextResponse.json({ error: "Lead not found" }, { status: 404 });
       }
+    }
+
+    const credit = await canPlaceCall(supabase, employee.business_id);
+    if (!credit.ok) {
+      return NextResponse.json({ error: credit.error }, { status: 402 });
     }
 
     const result = await dispatchLeadCall({

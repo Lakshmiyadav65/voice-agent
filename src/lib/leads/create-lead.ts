@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { canPlaceCall } from "@/lib/billing/credits";
 import type { Database } from "@/lib/database.types";
 import type { Attribution } from "@/lib/leads/attribution";
 import { dispatchLeadCall } from "@/lib/voice/dispatch-lead-call";
@@ -136,6 +137,10 @@ export async function placeCallForLead(
   supabase: AdminClient,
   target: CallTarget
 ): Promise<{ ok: true; attemptId: string } | { ok: false; error: string }> {
+  // Out of credit is not the lead's fault: leave it "new" so the owner can still call by hand.
+  const allowed = await canPlaceCall(supabase, target.businessId);
+  if (!allowed.ok) return allowed;
+
   const result = await dispatchLeadCall({
     aiEmployeeId: target.aiEmployeeId,
     customerName: target.name,

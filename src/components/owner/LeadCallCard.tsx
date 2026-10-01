@@ -1,5 +1,6 @@
 import type { CallAttempt, Lead } from "@/lib/database.types";
 import { secondsToFirstCall, type LeadWithCalls } from "@/lib/data/leads";
+import { formatRupees } from "@/lib/billing/credits";
 import { formatSeconds } from "@/lib/format";
 import { campaignOf, sourceLabel } from "@/lib/leads/attribution";
 import { formatCapturedValue, sanitizeCaptured } from "@/lib/voice/capture-fields";
@@ -111,6 +112,7 @@ export function LeadCallCard({ lead, attempt }: LeadCallCardProps) {
       <p className="mt-4 text-xs text-muted">
         {formatDateTime(lead.created_at)}
         {attempt?.duration ? ` · call lasted ${attempt.duration}s` : ""}
+        {attempt?.charge_paise ? ` · ${attempt.billed_minutes} min, ${formatRupees(attempt.charge_paise)}` : ""}
         {attempt?.failure_reason ? ` · ${attempt.failure_reason}` : ""}
       </p>
     </article>

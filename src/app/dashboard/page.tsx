@@ -7,6 +7,7 @@ import { SourceBreakdownTable } from "@/components/owner/SourceBreakdownTable";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
 import { requireDashboardAccess } from "@/lib/auth/session";
+import { canPlaceCall, getBalancePaise, isBillingEnforced } from "@/lib/billing/credits";
 import { summarizeAttempts } from "@/lib/data/call-analytics";
 import {
   dailyActivity,
@@ -20,6 +21,7 @@ import {
 import { getOwnerWorkspace } from "@/lib/data/workspace";
 import { formatSeconds } from "@/lib/format";
 import { ownerPages } from "@/lib/pages";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const RECENT_LEADS = 3;
 const CHART_DAYS = 14;
@@ -54,12 +56,29 @@ export default async function DashboardPage() {
   const sources = sourceBreakdown(leads);
   const recentLeads = leads.slice(0, RECENT_LEADS);
 
+  // Only worth interrupting the owner when an empty wallet actually stops calls.
+  const admin = createAdminClient();
+  const outOfCredit =
+    business && admin && isBillingEnforced() ? !(await canPlaceCall(admin, business.id)).ok : false;
+  const balancePaise = outOfCredit && admin && business ? await getBalancePaise(admin, business.id) : null;
+
   return (
     <div>
       <PageHeader
         title={ownerPages.dashboard.title}
         description={ownerPages.dashboard.description}
       />
+
+      {outOfCredit ? (
+        <p className="mb-8 rounded-xl border border-warn/40 bg-warn/5 px-4 py-3 text-sm text-warn">
+          Your AI employee has stopped calling: call credits have run out
+          {balancePaise !== null && balancePaise > 0 ? " (less than one minute left)" : ""}. New leads are
+          saved but not called.{" "}
+          <Link href="/dashboard/usage" className="font-semibold underline">
+            See usage
+          </Link>
+        </p>
+      ) : null}
 
       <section>
         <SectionHeading

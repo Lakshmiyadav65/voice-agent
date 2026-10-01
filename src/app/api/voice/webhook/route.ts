@@ -3,6 +3,7 @@ import { timingSafeEqual } from "crypto";
 import { after, NextResponse } from "next/server";
 
 import type { SarvamWebhookPayload } from "@/lib/sarvam/types";
+import { chargeCall } from "@/lib/billing/credits";
 import { onCampaignCallFinished } from "@/lib/campaigns/engine";
 import { deliverCallResult } from "@/lib/delivery/deliver";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -97,6 +98,11 @@ export async function POST(request: Request) {
 
     // Answer Sarvam first; slow or failing destinations must not delay or fail its webhook.
     after(async () => {
+      try {
+        await chargeCall(supabase, attempt.id);
+      } catch (err) {
+        console.error("[Billing] Failed to charge attempt", attempt.id, err);
+      }
       try {
         // Frees the campaign's line and schedules a retry if nobody picked up.
         await onCampaignCallFinished(supabase, attempt.lead_id, payload.status);

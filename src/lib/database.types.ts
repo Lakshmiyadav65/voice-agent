@@ -28,6 +28,7 @@ export type Business = {
   email: string | null;
   timezone: string;
   status: "active" | "inactive" | "onboarding";
+  rate_per_minute_paise: number;
   created_at: string;
   updated_at: string;
 };
@@ -120,6 +121,8 @@ export type CallAttempt = {
   unanswered_questions: string[];
   topics: string[];
   captured: CapturedValue[];
+  billed_minutes: number | null;
+  charge_paise: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -177,6 +180,17 @@ export type DoNotCall = {
   business_id: string;
   phone: string;
   reason: string | null;
+  created_at: string;
+};
+
+export type CreditLedgerEntry = {
+  id: string;
+  business_id: string;
+  kind: "topup" | "call_charge" | "adjustment";
+  amount_paise: number;
+  call_attempt_id: string | null;
+  note: string | null;
+  created_by: string | null;
   created_at: string;
 };
 
@@ -413,6 +427,16 @@ export type Database = {
         Update: Partial<DoNotCall>;
         Relationships: [];
       };
+      credit_ledger: {
+        Row: CreditLedgerEntry;
+        Insert: Partial<CreditLedgerEntry> & {
+          business_id: string;
+          kind: CreditLedgerEntry["kind"];
+          amount_paise: number;
+        };
+        Update: Partial<CreditLedgerEntry>;
+        Relationships: [];
+      };
       deliveries: {
         Row: Delivery;
         Insert: {
@@ -428,7 +452,12 @@ export type Database = {
         Relationships: [];
       };
     };
-    Views: Record<string, never>;
+    Views: {
+      business_balances: {
+        Row: { business_id: string; balance_paise: number };
+        Relationships: [];
+      };
+    };
     Functions: {
       match_knowledge_chunks: {
         Args: {

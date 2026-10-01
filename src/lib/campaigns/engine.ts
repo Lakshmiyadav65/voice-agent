@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Campaign, CampaignContact, Database } from "@/lib/database.types";
+import { canPlaceCall } from "@/lib/billing/credits";
 import { createLeadAndCall, placeCallForLead, resolveEmployeeId } from "@/lib/leads/create-lead";
 
 type AdminClient = SupabaseClient<Database>;
@@ -133,6 +134,10 @@ async function tickCampaign(supabase: AdminClient, campaign: Campaign, webhookUr
   }
 
   if (!isWithinWindow(campaign, now)) return { campaignId: campaign.id, dialled: 0, reason: "outside calling hours" };
+
+  // Wait rather than burn through the list marking everyone failed; a top-up resumes it.
+  const credit = await canPlaceCall(supabase, campaign.business_id);
+  if (!credit.ok) return { campaignId: campaign.id, dialled: 0, reason: "out of credits" };
 
   const { count: active } = await supabase
     .from("campaign_contacts")

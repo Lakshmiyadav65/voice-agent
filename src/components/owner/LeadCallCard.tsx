@@ -2,6 +2,7 @@ import type { CallAttempt, Lead } from "@/lib/database.types";
 import { secondsToFirstCall, type LeadWithCalls } from "@/lib/data/leads";
 import { formatSeconds } from "@/lib/format";
 import { campaignOf, sourceLabel } from "@/lib/leads/attribution";
+import { formatCapturedValue, sanitizeCaptured } from "@/lib/voice/capture-fields";
 
 const STATUS_STYLES: Record<Lead["status"], string> = {
   new: "bg-border/40 text-foreground",
@@ -29,6 +30,9 @@ export function LeadCallCard({ lead, attempt }: LeadCallCardProps) {
   const visitAt = formatDateTime(attempt?.preferred_visit_at ?? null);
   const campaign = campaignOf(lead.utm);
   const waited = secondsToFirstCall(lead);
+  const captured = sanitizeCaptured(attempt?.captured)
+    .map((item) => ({ label: item.label, value: formatCapturedValue(item) }))
+    .filter((item): item is { label: string; value: string } => Boolean(item.value));
 
   return (
     <article className="rounded-xl border border-border bg-surface p-5">
@@ -87,6 +91,17 @@ export function LeadCallCard({ lead, attempt }: LeadCallCardProps) {
           </p>
           <p className="mt-2 text-sm leading-relaxed text-foreground">{attempt.summary}</p>
         </div>
+      ) : null}
+
+      {captured.length > 0 ? (
+        <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+          {captured.map((item) => (
+            <div key={item.label} className="flex gap-2">
+              <dt className="shrink-0 text-muted">{item.label}:</dt>
+              <dd className="text-foreground">{item.value}</dd>
+            </div>
+          ))}
+        </dl>
       ) : null}
 
       {visitAt ? (

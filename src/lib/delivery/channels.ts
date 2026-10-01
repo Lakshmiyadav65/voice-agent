@@ -1,6 +1,7 @@
 import { createHmac } from "crypto";
 
 import type { DeliveryTarget } from "@/lib/database.types";
+import { formatCapturedValue } from "@/lib/voice/capture-fields";
 import {
   OUTCOME_TEXT,
   resultHeadline,
@@ -71,6 +72,10 @@ function renderEmail(payload: CallResultPayload): { subject: string; html: strin
     ["Enquiry", lead.enquiry ?? "—"],
     ["Call length", call.duration_seconds ? `${call.duration_seconds}s` : "—"],
   ];
+  for (const item of call.captured) {
+    const value = formatCapturedValue(item);
+    if (value) rows.push([item.label, value]);
+  }
   if (call.preferred_visit_at) {
     rows.push([
       "Preferred visit",

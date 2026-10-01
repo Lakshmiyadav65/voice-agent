@@ -1,5 +1,10 @@
 import type { Business, CallAttempt, Lead } from "@/lib/database.types";
 import { campaignOf, sanitizeAttribution, sourceLabel } from "@/lib/leads/attribution";
+import {
+  formatCapturedValue,
+  sanitizeCaptured,
+  type CapturedValue,
+} from "@/lib/voice/capture-fields";
 
 /**
  * The one shape every channel sends. Webhook receivers get it verbatim; email
@@ -30,6 +35,8 @@ export type CallResultPayload = {
     preferred_visit_at: string | null;
     topics: string[];
     unanswered_questions: string[];
+    // The owner's own fields (budget, area...), with labels as they were at call time.
+    captured: CapturedValue[];
     called_at: string;
   };
   dashboard_url: string | null;
@@ -70,6 +77,7 @@ export function buildCallResultPayload(
       preferred_visit_at: attempt.preferred_visit_at,
       topics: attempt.topics ?? [],
       unanswered_questions: attempt.unanswered_questions ?? [],
+      captured: sanitizeCaptured(attempt.captured),
       called_at: attempt.created_at,
     },
     dashboard_url: dashboardUrl(),
@@ -105,6 +113,10 @@ export function buildTestPayload(business: Pick<Business, "id" | "name">): CallR
       preferred_visit_at: null,
       topics: ["pricing"],
       unanswered_questions: [],
+      captured: [
+        { key: "budget", label: "Budget", value: "₹20,000" },
+        { key: "area", label: "Area / location", value: "Kukatpally" },
+      ],
       called_at: now,
     },
     dashboard_url: dashboardUrl(),
@@ -139,6 +151,10 @@ export function resultHeadline(payload: CallResultPayload): string {
 /** Flat row for spreadsheets: column names are the keys, in this order. */
 export function toSheetRow(payload: CallResultPayload): Record<string, string | number> {
   const { lead, call } = payload;
+  // Captured fields become their own columns; the Apps Script adds headers it has not seen.
+  const captured = Object.fromEntries(
+    call.captured.map((item) => [item.label, formatCapturedValue(item) ?? ""])
+  );
   return {
     "Called at": new Date(call.called_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
     Name: lead.name,
@@ -153,5 +169,6 @@ export function toSheetRow(payload: CallResultPayload): Record<string, string | 
       : "",
     "Call length (s)": call.duration_seconds ?? "",
     Sentiment: call.sentiment ?? "",
+    ...captured,
   };
 }

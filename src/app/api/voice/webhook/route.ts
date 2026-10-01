@@ -5,6 +5,7 @@ import { after, NextResponse } from "next/server";
 import type { SarvamWebhookPayload } from "@/lib/sarvam/types";
 import { deliverCallResult } from "@/lib/delivery/deliver";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sanitizeCaptureFields } from "@/lib/voice/capture-fields";
 import { analyzeCall } from "@/lib/voice/summarize-call";
 
 const LEAD_STATUS_BY_CALL_STATUS = {
@@ -52,9 +53,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ received: true, matched: false });
     }
 
+    // The fields the owner wanted at the time of the call decide what gets extracted.
+    const { data: lead } = await supabase
+      .from("leads")
+      .select("ai_employees(capture_fields)")
+      .eq("id", attempt.lead_id)
+      .maybeSingle();
+    const captureFields = sanitizeCaptureFields(
+      (lead as { ai_employees: { capture_fields: unknown } | null } | null)?.ai_employees?.capture_fields
+    );
+
     const analysis = await analyzeCall(
       payload.interaction_transcript,
-      payload.final_agent_variables
+      payload.final_agent_variables,
+      captureFields
     );
 
     await supabase
@@ -73,6 +85,7 @@ export async function POST(request: Request) {
         sentiment: analysis.sentiment,
         unanswered_questions: analysis.unansweredQuestions,
         topics: analysis.topics,
+        captured: analysis.captured,
       })
       .eq("id", attempt.id);
 

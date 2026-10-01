@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { triggerLeadCall } from "@/lib/sarvam/client";
+import { captureBriefing, sanitizeCaptureFields } from "@/lib/voice/capture-fields";
 
 const KNOWLEDGE_CHAR_LIMIT = 7500;
 
@@ -26,6 +27,7 @@ type ResolvedContext = {
   employeeName: string;
   employeeLanguage: string;
   knowledge: string;
+  captureBriefing: string;
 };
 
 /**
@@ -39,6 +41,7 @@ async function resolveEmployeeContext(aiEmployeeId?: string | null): Promise<Res
     employeeName: "Voice Agent",
     employeeLanguage: "English",
     knowledge: "",
+    captureBriefing: "",
   };
 
   if (!aiEmployeeId) return context;
@@ -55,6 +58,7 @@ async function resolveEmployeeContext(aiEmployeeId?: string | null): Promise<Res
   if (!employee) return context;
 
   context.employeeName = employee.name;
+  context.captureBriefing = captureBriefing(sanitizeCaptureFields(employee.capture_fields));
   context.employeeLanguage = (employee as any).language || context.employeeLanguage;
 
   const business = (employee as any).businesses;
@@ -106,9 +110,12 @@ export async function dispatchLeadCall(
 
   const context = await resolveEmployeeContext(options.aiEmployeeId);
 
-  const knowledge =
+  const facts =
     context.knowledge ||
     `Business Name: ${context.businessName}\nRepresentative: ${context.employeeName}\nType: ${context.businessType}\nRole: Sales, Lead Inquiries, and Customer Support.`;
+  // Rides inside business_description because that variable already exists on the
+  // Sarvam canvas; a new variable would need console work for every field change.
+  const knowledge = [facts, context.captureBriefing].filter(Boolean).join("\n\n");
 
   const openingMessage =
     options.initialBotMessage ||

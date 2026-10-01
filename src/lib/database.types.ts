@@ -1,3 +1,5 @@
+import type { CaptureField, CapturedValue } from "@/lib/voice/capture-fields";
+
 export type Json =
   | string
   | number
@@ -45,6 +47,7 @@ export type AiEmployee = {
   description: string | null;
   status: "draft" | "testing" | "live" | "paused";
   current_version_id: string | null;
+  capture_fields: CaptureField[];
   created_at: string;
   updated_at: string;
 };
@@ -115,6 +118,7 @@ export type CallAttempt = {
   sentiment: "positive" | "neutral" | "negative" | null;
   unanswered_questions: string[];
   topics: string[];
+  captured: CapturedValue[];
   created_at: string;
   updated_at: string;
 };
@@ -208,6 +212,7 @@ export type Database = {
           description?: string | null;
           status?: AiEmployee["status"];
           current_version_id?: string | null;
+          capture_fields?: CaptureField[];
           created_at?: string;
           updated_at?: string;
         };
@@ -289,6 +294,7 @@ export type Database = {
           sentiment?: CallAttempt["sentiment"];
           unanswered_questions?: string[];
           topics?: string[];
+          captured?: CapturedValue[];
           created_at?: string;
           updated_at?: string;
         };

@@ -3,6 +3,7 @@ import { StringOutputParser } from "@langchain/core/output_parsers";
 
 import { getChatGroq } from "@/lib/rag/qa-engine";
 import type { CallOutcomeLabel, CallTranscriptTurn } from "@/lib/database.types";
+import type { CaptureField, CapturedValue } from "@/lib/voice/capture-fields";
 
 export type CallAnalysis = {
   summary: string;
@@ -12,6 +13,7 @@ export type CallAnalysis = {
   sentiment: "positive" | "neutral" | "negative" | null;
   unansweredQuestions: string[];
   topics: string[];
+  captured: CapturedValue[];
 };
 
 const OUTCOMES: CallOutcomeLabel[] = [
@@ -60,6 +62,49 @@ function readVisitIntent(finalVariables: Record<string, any> | null) {
   };
 }
 
+function coerceCaptured(field: CaptureField, value: unknown): CapturedValue["value"] {
+  if (value === null || value === undefined || value === "") return null;
+
+  switch (field.type) {
+    case "yes_no":
+      return coerceBoolean(value);
+    case "number": {
+      if (typeof value === "number") return Number.isFinite(value) ? value : null;
+      const text = String(value).trim();
+      // Only plain figures become numbers; "around 20 thousand" stays as words rather than becoming 20.
+      return /^[₹\s\d,.-]+$/.test(text) && /\d/.test(text)
+        ? Number(text.replace(/[^\d.-]/g, ""))
+        : text.slice(0, 200);
+    }
+    case "date":
+      return coerceDate(value) ?? String(value).slice(0, 200);
+    default:
+      return String(value).trim().slice(0, 200) || null;
+  }
+}
+
+/** Every configured field gets an entry, null when the call never covered it. */
+function readCaptured(fields: CaptureField[], raw: unknown): CapturedValue[] {
+  const source = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  return fields.map((field) => ({
+    key: field.key,
+    label: field.label,
+    value: coerceCaptured(field, source[field.key]),
+  }));
+}
+
+function captureInstructions(fields: CaptureField[]): string {
+  if (!fields.length) return "";
+  const lines = fields.map((f) => {
+    const shape =
+      f.type === "yes_no" ? "true or false" : f.type === "number" ? "a number" : f.type === "date" ? "an ISO 8601 date-time" : "short text";
+    return `  - "${f.key}": ${f.label}${f.hint ? ` (${f.hint})` : ""} — ${shape}`;
+  });
+  return `- "captured": an object with exactly these keys. Use null for anything the
+  customer did not clearly say:
+${lines.join("\n")}`;
+}
+
 function toStringList(value: unknown, limit: number): string[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -87,7 +132,11 @@ function fallbackSummary(text: string): string {
   return condensed.slice(0, 400) + (condensed.length > 400 ? "..." : "");
 }
 
-function emptyAnalysis(summary: string, intent: ReturnType<typeof readVisitIntent>): CallAnalysis {
+function emptyAnalysis(
+  summary: string,
+  intent: ReturnType<typeof readVisitIntent>,
+  fields: CaptureField[]
+): CallAnalysis {
   return {
     summary,
     ...intent,
@@ -95,25 +144,27 @@ function emptyAnalysis(summary: string, intent: ReturnType<typeof readVisitInten
     sentiment: null,
     unansweredQuestions: [],
     topics: [],
+    captured: readCaptured(fields, null),
   };
 }
 
 export async function analyzeCall(
   transcript: CallTranscriptTurn[] | null,
-  finalVariables: Record<string, any> | null
+  finalVariables: Record<string, any> | null,
+  captureFields: CaptureField[] = []
 ): Promise<CallAnalysis> {
   const intent = readVisitIntent(finalVariables);
 
   if (!transcript?.length) {
     return {
-      ...emptyAnalysis("No conversation was recorded for this call.", intent),
+      ...emptyAnalysis("No conversation was recorded for this call.", intent, captureFields),
       outcome: "no_answer",
     };
   }
 
   const text = transcriptToText(transcript);
   const llm = getChatGroq();
-  if (!llm) return emptyAnalysis(fallbackSummary(text), intent);
+  if (!llm) return emptyAnalysis(fallbackSummary(text), intent, captureFields);
 
   try {
     const prompt = PromptTemplate.fromTemplate(`
@@ -128,6 +179,7 @@ Return ONLY a JSON object with these keys:
   failed to answer, answered vaguely, or said it did not know. Quote them close
   to how the customer put them. Empty array if the agent answered everything.
 - "topics": array of up to 5 short topic labels, e.g. "pricing", "delivery".
+{capture}
 
 Only use what is in the transcript. Do not invent details.
 
@@ -143,10 +195,11 @@ JSON:
     const response = await chain.invoke({
       text: text.slice(0, 8000),
       outcomes: OUTCOMES.join(", "),
+      capture: captureInstructions(captureFields),
     });
 
     const parsed = extractJson(response);
-    if (!parsed) return emptyAnalysis(fallbackSummary(text), intent);
+    if (!parsed) return emptyAnalysis(fallbackSummary(text), intent, captureFields);
 
     const outcome = OUTCOMES.includes(parsed.outcome) ? parsed.outcome : null;
     const sentiment = SENTIMENTS.includes(parsed.sentiment) ? parsed.sentiment : null;
@@ -161,9 +214,10 @@ JSON:
       sentiment,
       unansweredQuestions: toStringList(parsed.unanswered_questions, 10),
       topics: toStringList(parsed.topics, 5),
+      captured: readCaptured(captureFields, parsed.captured),
     };
   } catch (err) {
     console.warn("[analyzeCall] Falling back to raw transcript:", err);
-    return emptyAnalysis(fallbackSummary(text), intent);
+    return emptyAnalysis(fallbackSummary(text), intent, captureFields);
   }
 }

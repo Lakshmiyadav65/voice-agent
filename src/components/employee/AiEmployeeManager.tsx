@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { AiEmployee, Business, KnowledgeDocument } from "@/lib/database.types";
+import { CaptureFieldsEditor } from "./CaptureFieldsEditor";
 import { CreateEmployeeModal } from "./CreateEmployeeModal";
 import { VoiceRecorder } from "../rag/VoiceRecorder";
 import { DocumentUploader } from "../rag/DocumentUploader";
@@ -20,7 +21,7 @@ export function AiEmployeeManager({
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(
     initialEmployees[0]?.id || ""
   );
-  const [activeTab, setActiveTab] = useState<"speak" | "upload" | "simulate">("speak");
+  const [activeTab, setActiveTab] = useState<"speak" | "upload" | "capture" | "simulate">("speak");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // Business Name state synced with VoiceRecorder and database
@@ -227,6 +228,22 @@ export function AiEmployeeManager({
 
             <button
               type="button"
+              onClick={() => setActiveTab("capture")}
+              className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === "capture"
+                  ? "bg-accent text-white shadow-xs"
+                  : "bg-surface text-muted hover:bg-background hover:text-ink border border-border"
+              }`}
+            >
+              <span>📝</span>
+              <span>3. What to Find Out</span>
+              {selectedEmployee.capture_fields?.length ? (
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              ) : null}
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveTab("simulate")}
               className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === "simulate"
@@ -235,7 +252,7 @@ export function AiEmployeeManager({
               }`}
             >
               <span>📞</span>
-              <span>3. Outbound Voice Calling</span>
+              <span>4. Outbound Voice Calling</span>
             </button>
           </div>
 
@@ -263,7 +280,22 @@ export function AiEmployeeManager({
             />
           )}
 
-          {/* Tab 3: Outbound Voice Calling */}
+          {/* Tab 3: What to Find Out */}
+          {activeTab === "capture" && (
+            <CaptureFieldsEditor
+              key={selectedEmployee.id}
+              aiEmployeeId={selectedEmployee.id}
+              employeeName={selectedEmployee.name}
+              initialFields={selectedEmployee.capture_fields ?? []}
+              onSaved={(fields) =>
+                setEmployees((list) =>
+                  list.map((e) => (e.id === selectedEmployee.id ? { ...e, capture_fields: fields } : e))
+                )
+              }
+            />
+          )}
+
+          {/* Tab 4: Outbound Voice Calling */}
           {activeTab === "simulate" && (
             <LeadCallSimulator
               aiEmployeeId={selectedEmployee.id}

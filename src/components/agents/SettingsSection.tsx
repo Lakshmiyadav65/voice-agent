@@ -16,6 +16,7 @@ import {
   type SoundSensitivity,
   type SwitchAfter,
 } from "@/lib/voice/agent-settings";
+import { VoicePreviewButton } from "./VoicePreviewButton";
 
 type Props = {
   settings: AgentSettings;
@@ -152,15 +153,30 @@ function Choice<T extends string>({
   );
 }
 
-function VoiceSelect({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+function VoiceSelect({
+  value,
+  onChange,
+  label,
+  language,
+  pace,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  label: string;
+  language: AgentLanguage;
+  pace: number;
+}) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} className={input}>
-      {AGENT_VOICES.map((voice) => (
-        <option key={voice} value={voice}>
-          {voiceLabel(voice)}
-        </option>
-      ))}
-    </select>
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} className={input}>
+        {AGENT_VOICES.map((voice) => (
+          <option key={voice} value={voice}>
+            {voiceLabel(voice)}
+          </option>
+        ))}
+      </select>
+      <VoicePreviewButton voice={value} language={language} pace={pace} />
+    </div>
   );
 }
 
@@ -215,7 +231,13 @@ export function SettingsSection({ settings, onChange }: Props) {
 
       <Section title="Speaking">
         <Row label="Voice" hint="Who your agent sounds like">
-          <VoiceSelect value={settings.voice} onChange={(v) => set("voice", v)} label="Voice" />
+          <VoiceSelect
+            value={settings.voice}
+            onChange={(v) => set("voice", v)}
+            label="Voice"
+            language={settings.startingLanguage}
+            pace={settings.speakingSpeed}
+          />
         </Row>
         <Row label="Per-language voices" hint="Use a different voice for each starting language">
           <Toggle
@@ -230,6 +252,8 @@ export function SettingsSection({ settings, onChange }: Props) {
               <label key={language} className="flex items-center gap-2 text-sm text-ink">
                 <span className="w-24 shrink-0">{language}</span>
                 <VoiceSelect
+                  language={language}
+                  pace={settings.speakingSpeed}
                   label={`${language} voice`}
                   value={perLanguageVoices.voices[language] ?? settings.voice}
                   onChange={(voice) =>

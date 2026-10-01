@@ -61,7 +61,13 @@ function findProblem(settings: AgentSettings, tests: AgentTest[]): { section: Se
 
 export function AgentBuilder({ agentId, initialName, initialSettings, initialTests, initialSection }: Props) {
   const [section, setSection] = useState<SectionId>(initialSection);
-  const [panel, setPanel] = useState<"genie" | "test" | null>("genie");
+  const [panel, setPanelState] = useState<"genie" | "test" | null>("genie");
+  // Genie starts open beside the editor on wide screens; on phones it stays hidden until asked for.
+  const [panelChosen, setPanelChosen] = useState(false);
+  const setPanel = (next: "genie" | "test" | null) => {
+    setPanelState(next);
+    setPanelChosen(true);
+  };
   const [name, setName] = useState(initialName);
   const [settings, setSettings] = useState(initialSettings);
   const [tests, setTests] = useState(initialTests);
@@ -73,11 +79,6 @@ export function AgentBuilder({ agentId, initialName, initialSettings, initialTes
   const agentDirty = name !== saved.name || JSON.stringify(settings) !== JSON.stringify(saved.settings);
   const testsDirty = JSON.stringify(tests) !== JSON.stringify(saved.tests);
   const dirty = agentDirty || testsDirty;
-
-  // Genie starts open beside the editor, but on phones it would push the editor down.
-  useEffect(() => {
-    if (window.matchMedia("(max-width: 1023px)").matches) setPanel(null);
-  }, []);
 
   useEffect(() => {
     if (!dirty) return;
@@ -219,7 +220,11 @@ export function AgentBuilder({ agentId, initialName, initialSettings, initialTes
           </button>
           <button
             type="button"
-            onClick={() => setPanel(panel === "genie" ? null : "genie")}
+            onClick={() => {
+              // Before any choice, Genie is only on screen on wide layouts.
+              const showing = panel === "genie" && (panelChosen || window.matchMedia("(min-width: 1024px)").matches);
+              setPanel(showing ? null : "genie");
+            }}
             aria-pressed={panel === "genie"}
             className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm font-semibold transition ${
               panel === "genie" ? "border-accent text-accent" : "border-border text-ink hover:border-accent"
@@ -275,7 +280,7 @@ export function AgentBuilder({ agentId, initialName, initialSettings, initialTes
 
         {/* Genie / test call */}
         {panel ? (
-          <aside className="border-t border-border p-4 lg:sticky lg:top-0 lg:h-[calc(100vh-2rem)] lg:w-96 lg:shrink-0 lg:border-l lg:border-t-0">
+          <aside className={`${panelChosen ? "" : "hidden lg:block"} border-t border-border p-4 lg:sticky lg:top-0 lg:h-[calc(100vh-2rem)] lg:w-96 lg:shrink-0 lg:border-l lg:border-t-0`}>
             <div className="mb-3 flex items-center justify-between">
               <p className="flex items-center gap-2 text-base font-medium text-ink">
                 {panel === "genie" ? <SparkleIcon /> : <PhoneIcon />}

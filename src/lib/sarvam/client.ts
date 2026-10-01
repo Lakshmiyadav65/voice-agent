@@ -1,5 +1,6 @@
 import { formatE164PhoneNumber } from "@/lib/phone";
 import {
+  SarvamAppOverrides,
   SarvamInstantOutboundRequest,
   SarvamInstantOutboundResponse,
 } from "./types";
@@ -16,6 +17,7 @@ export interface TriggerLeadCallOptions {
   agentVariables?: Record<string, any>;
   initialBotMessage?: string;
   initialStateName?: string;
+  initialLanguage?: SarvamAppOverrides["initial_language_name"];
   webhookUrl?: string;
   metadata?: Record<string, any>;
   // Overrides for agent/connection if not using env vars
@@ -81,11 +83,12 @@ export async function triggerLeadCall(
       ...(options.agentVariables && Object.keys(options.agentVariables).length > 0
         ? { agent_variables: options.agentVariables }
         : {}),
-      ...(resolvedBotMessage || options.initialStateName
+      ...(resolvedBotMessage || options.initialStateName || options.initialLanguage
         ? {
             app_overrides: {
               ...(resolvedBotMessage ? { initial_bot_message: resolvedBotMessage } : {}),
               ...(options.initialStateName ? { initial_state_name: options.initialStateName } : {}),
+              ...(options.initialLanguage ? { initial_language_name: options.initialLanguage } : {}),
             },
           }
         : {}),

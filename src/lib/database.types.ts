@@ -49,6 +49,8 @@ export type AiEmployee = {
   status: "draft" | "testing" | "live" | "paused";
   current_version_id: string | null;
   capture_fields: CaptureField[];
+  // Provider-neutral; read through sanitizeAgentSettings, which fills defaults.
+  agent_settings: Json;
   created_at: string;
   updated_at: string;
 };
@@ -284,6 +286,7 @@ export type Database = {
           status?: AiEmployee["status"];
           current_version_id?: string | null;
           capture_fields?: CaptureField[];
+          agent_settings?: Json;
           created_at?: string;
           updated_at?: string;
         };

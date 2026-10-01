@@ -1,5 +1,12 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { triggerLeadCall } from "@/lib/sarvam/client";
+import { toSarvamOverrides } from "@/lib/sarvam/agent-settings";
+import {
+  DEFAULT_AGENT_SETTINGS,
+  fillTemplate,
+  sanitizeAgentSettings,
+  type AgentSettings,
+} from "@/lib/voice/agent-settings";
 import { captureBriefing, sanitizeCaptureFields } from "@/lib/voice/capture-fields";
 
 const KNOWLEDGE_CHAR_LIMIT = 7500;
@@ -25,7 +32,7 @@ type ResolvedContext = {
   businessName: string;
   businessType: string;
   employeeName: string;
-  employeeLanguage: string;
+  settings: AgentSettings;
   knowledge: string;
   captureBriefing: string;
 };
@@ -39,7 +46,7 @@ async function resolveEmployeeContext(aiEmployeeId?: string | null): Promise<Res
     businessName: "Our Business",
     businessType: "Consumer & Commercial Services",
     employeeName: "Voice Agent",
-    employeeLanguage: "English",
+    settings: DEFAULT_AGENT_SETTINGS,
     knowledge: "",
     captureBriefing: "",
   };
@@ -59,7 +66,7 @@ async function resolveEmployeeContext(aiEmployeeId?: string | null): Promise<Res
 
   context.employeeName = employee.name;
   context.captureBriefing = captureBriefing(sanitizeCaptureFields(employee.capture_fields));
-  context.employeeLanguage = (employee as any).language || context.employeeLanguage;
+  context.settings = sanitizeAgentSettings(employee.agent_settings);
 
   const business = (employee as any).businesses;
   if (business) {
@@ -117,9 +124,11 @@ export async function dispatchLeadCall(
   // Sarvam canvas; a new variable would need console work for every field change.
   const knowledge = [facts, context.captureBriefing].filter(Boolean).join("\n\n");
 
-  const openingMessage =
-    options.initialBotMessage ||
-    `Hello! I am calling from ${context.businessName} regarding your recent inquiry. Am I speaking with ${customerName}?`;
+  const openingMessage = fillTemplate(options.initialBotMessage || context.settings.greeting, {
+    business_name: context.businessName,
+    lead_name: customerName,
+  });
+  const overrides = toSarvamOverrides(context.settings, openingMessage);
 
   // Keys mirror the variable names configured on the Sarvam agent canvas.
   const agentVariables: Record<string, any> = {
@@ -128,7 +137,7 @@ export async function dispatchLeadCall(
     business_description: knowledge,
     lead_name: customerName,
     lead_phone: options.phoneNumber,
-    preferred_language: context.employeeLanguage.includes("Hindi") ? "Hindi" : "English",
+    preferred_language: context.settings.startingLanguage,
     lead_enquiry: options.reason || "Inquiry regarding services and pricing",
     interested_product: "Services & Products from catalog",
     ...(options.agentVariables || {}),
@@ -139,8 +148,9 @@ export async function dispatchLeadCall(
     phoneNumber: options.phoneNumber,
     reason: options.reason,
     agentVariables,
-    initialBotMessage: openingMessage,
+    initialBotMessage: overrides.initial_bot_message ?? openingMessage,
     initialStateName: options.initialStateName,
+    initialLanguage: overrides.initial_language_name,
     webhookUrl: options.webhookUrl,
     metadata: {
       ...(options.leadId ? { lead_id: options.leadId } : {}),

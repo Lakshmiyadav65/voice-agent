@@ -2,12 +2,14 @@ import { headers } from "next/headers";
 
 import { AdLinkBuilder } from "@/components/owner/AdLinkBuilder";
 import { DeliverySettings } from "@/components/owner/DeliverySettings";
+import { MetaLeadAds, type MetaPageSummary } from "@/components/owner/MetaLeadAds";
 import { AppSectionPage } from "@/components/shell/AppSectionPage";
 import { canManageBusiness } from "@/lib/auth/access";
 import { requireDashboardAccess } from "@/lib/auth/session";
 import { getOwnerWorkspace } from "@/lib/data/workspace";
 import type { DeliveryTarget } from "@/lib/database.types";
 import { isEmailConfigured } from "@/lib/delivery/channels";
+import { getMetaConfig } from "@/lib/meta/graph";
 import { ownerPages } from "@/lib/pages";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -22,13 +24,48 @@ async function publicBaseUrl(): Promise<string> {
   return `${proto}://${host}`;
 }
 
-export default async function SettingsPage() {
+type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
+
+/** Turns the Facebook connect redirect's query into a message for the owner. */
+function metaNotice(query: Record<string, string | string[] | undefined>): {
+  tone: "good" | "bad";
+  text: string;
+} | null {
+  const get = (key: string) => (typeof query[key] === "string" ? (query[key] as string) : undefined);
+  switch (get("meta")) {
+    case "connected": {
+      const count = Number(get("pages") ?? 0);
+      const skipped = get("skipped");
+      return {
+        tone: count ? "good" : "bad",
+        text:
+          `${count ? `Connected ${count} Page${count === 1 ? "" : "s"}. New lead ad submissions will now be called automatically.` : "No Pages were connected."}` +
+          (skipped ? ` Skipped (already linked to another business): ${skipped}.` : ""),
+      };
+    }
+    case "cancelled":
+      return { tone: "bad", text: "Facebook connection was cancelled." };
+    case "no_pages":
+      return { tone: "bad", text: "No Pages were shared. Connect again and tick the Page your ads run from." };
+    case "not_owner":
+      return { tone: "bad", text: "Only the business owner can connect a Facebook Page." };
+    case "not_configured":
+      return { tone: "bad", text: "Connecting Facebook isn't switched on for this platform yet." };
+    case "error":
+      return { tone: "bad", text: `Could not connect Facebook: ${get("reason") ?? "unknown error"}` };
+    default:
+      return null;
+  }
+}
+
+export default async function SettingsPage({ searchParams }: PageProps) {
+  const query = await searchParams;
   const session = await requireDashboardAccess();
   const workspace = await getOwnerWorkspace(session.userId);
   const business = workspace.primaryBusiness;
 
   const admin = createAdminClient();
-  const [targets, canManage] =
+  const [targets, canManage, metaPages] =
     business && admin
       ? await Promise.all([
           admin
@@ -38,8 +75,15 @@ export default async function SettingsPage() {
             .order("created_at")
             .then(({ data }) => (data as DeliveryTarget[] | null) ?? []),
           canManageBusiness(admin, session, business.id),
+          // Never the token: only the columns safe to render.
+          admin
+            .from("meta_page_connections")
+            .select("id, page_name, last_lead_at, last_error, created_at")
+            .eq("business_id", business.id)
+            .order("created_at")
+            .then(({ data }) => (data as MetaPageSummary[] | null) ?? []),
         ])
-      : [[], false];
+      : [[], false, []];
 
   return (
     <AppSectionPage meta={ownerPages.settings} showEmpty={false}>
@@ -55,6 +99,28 @@ export default async function SettingsPage() {
         ) : (
           <p className="rounded-xl border border-dashed border-border px-5 py-6 text-sm text-muted">
             Your ad links appear here once your business is set up.
+          </p>
+        )}
+      </section>
+
+      <section id="lead-ads" className="mt-10 scroll-mt-6 border-t border-border pt-8">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+          Facebook &amp; Instagram lead ads
+        </h2>
+        <p className="mt-1 mb-4 text-sm text-muted">
+          When someone fills the form inside a Facebook or Instagram ad, your AI employee calls them
+          straight away — no website needed.
+        </p>
+        {business ? (
+          <MetaLeadAds
+            configured={Boolean(getMetaConfig())}
+            canManage={canManage}
+            initialPages={metaPages}
+            notice={metaNotice(query)}
+          />
+        ) : (
+          <p className="rounded-xl border border-dashed border-border px-5 py-6 text-sm text-muted">
+            Available once your business is set up.
           </p>
         )}
       </section>

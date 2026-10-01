@@ -90,6 +90,7 @@ export type Lead = {
   source: string;
   utm: Record<string, any>;
   ip_hash: string | null;
+  external_id: string | null;
   status: "new" | "calling" | "contacted" | "unreachable" | "converted" | "closed";
   created_at: string;
   updated_at: string;
@@ -119,6 +120,19 @@ export type CallAttempt = {
   unanswered_questions: string[];
   topics: string[];
   captured: CapturedValue[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type MetaPageConnection = {
+  id: string;
+  business_id: string;
+  page_id: string;
+  page_name: string;
+  page_access_token: string;
+  connected_by: string | null;
+  last_lead_at: string | null;
+  last_error: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -267,6 +281,7 @@ export type Database = {
           source?: string;
           utm?: Record<string, any>;
           ip_hash?: string | null;
+          external_id?: string | null;
           status?: Lead["status"];
           created_at?: string;
           updated_at?: string;
@@ -315,6 +330,21 @@ export type Database = {
           last_sent_at?: string | null;
         };
         Update: Partial<DeliveryTarget>;
+        Relationships: [];
+      };
+      meta_page_connections: {
+        Row: MetaPageConnection;
+        Insert: {
+          id?: string;
+          business_id: string;
+          page_id: string;
+          page_name: string;
+          page_access_token: string;
+          connected_by?: string | null;
+          last_lead_at?: string | null;
+          last_error?: string | null;
+        };
+        Update: Partial<MetaPageConnection>;
         Relationships: [];
       };
       deliveries: {

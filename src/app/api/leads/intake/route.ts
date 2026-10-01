@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import { formatE164PhoneNumber } from "@/lib/sarvam/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitizeAttribution, sourceFromAttribution } from "@/lib/leads/attribution";
+import { createLeadAndCall } from "@/lib/leads/create-lead";
 import { checkSubmissionAllowed, clientIpFrom, hashIp } from "@/lib/leads/rate-limit";
-import { dispatchLeadCall } from "@/lib/voice/dispatch-lead-call";
 import { resolveWebhookUrl } from "@/lib/voice/webhook-url";
 
 const MAX_FIELD_LENGTH = 500;
@@ -80,59 +80,26 @@ export async function POST(request: Request) {
       return json({ error: "Unknown business." }, 404);
     }
 
-    const aiEmployeeId = clean(body.aiEmployeeId);
-    const enquiry = clean(body.enquiry);
     const utm = sanitizeAttribution(body.utm);
 
-    const { data: lead, error: insertError } = await supabase
-      .from("leads")
-      .insert({
-        business_id: businessId,
-        ai_employee_id: aiEmployeeId ?? null,
-        name,
-        phone,
-        email: clean(body.email) ?? null,
-        enquiry: enquiry ?? null,
-        // Client sites posting directly may send tags without naming a source.
-        source: clean(body.source)?.slice(0, 50) ?? sourceFromAttribution(utm) ?? "ad_form",
-        utm,
-        ip_hash: ipHash,
-        status: "new",
-      })
-      .select("id")
-      .single();
-
-    if (insertError || !lead) {
-      return json({ error: "Could not record your request." }, 500);
-    }
-
-    const result = await dispatchLeadCall({
-      aiEmployeeId: aiEmployeeId ?? null,
-      customerName: name,
-      phoneNumber: phone,
-      reason: enquiry,
-      leadId: lead.id,
+    const result = await createLeadAndCall(supabase, {
+      businessId,
+      aiEmployeeId: clean(body.aiEmployeeId),
+      name,
+      phone,
+      email: clean(body.email),
+      enquiry: clean(body.enquiry),
+      // Client sites posting directly may send tags without naming a source.
+      source: clean(body.source)?.slice(0, 50) ?? sourceFromAttribution(utm) ?? "ad_form",
+      utm,
+      ipHash,
       webhookUrl: resolveWebhookUrl(request),
     });
 
-    if (!result.success) {
-      // The lead is already saved, so the business can still follow up by hand.
-      await supabase.from("leads").update({ status: "unreachable" }).eq("id", lead.id);
-      return json({ accepted: true, called: false, leadId: lead.id }, 202);
+    if (!result.ok) {
+      return json({ error: "Could not record your request." }, 500);
     }
-
-    await supabase
-      .from("call_attempts")
-      .insert({
-        lead_id: lead.id,
-        business_id: businessId,
-        attempt_id: result.attemptId!,
-        status: "dispatched",
-      });
-
-    await supabase.from("leads").update({ status: "calling" }).eq("id", lead.id);
-
-    return json({ accepted: true, called: true, leadId: lead.id }, 202);
+    return json({ accepted: true, called: result.called, leadId: result.leadId }, 202);
   } catch {
     return json({ error: "Could not process your request." }, 500);
   }

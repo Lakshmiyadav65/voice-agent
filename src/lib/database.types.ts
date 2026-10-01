@@ -137,6 +137,49 @@ export type MetaPageConnection = {
   updated_at: string;
 };
 
+export type Campaign = {
+  id: string;
+  business_id: string;
+  ai_employee_id: string | null;
+  name: string;
+  status: "draft" | "running" | "paused" | "completed";
+  max_concurrent: number;
+  window_start: string;
+  window_end: string;
+  time_zone: string;
+  max_attempts: number;
+  retry_after_minutes: number;
+  created_by: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CampaignContact = {
+  id: string;
+  campaign_id: string;
+  business_id: string;
+  name: string;
+  phone: string;
+  notes: string | null;
+  status: "queued" | "calling" | "completed" | "unreachable" | "failed" | "do_not_call";
+  attempts: number;
+  next_attempt_at: string;
+  lead_id: string | null;
+  last_call_status: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DoNotCall = {
+  business_id: string;
+  phone: string;
+  reason: string | null;
+  created_at: string;
+};
+
 export type DeliveryKind = "email" | "sheet" | "webhook";
 
 export type DeliveryTarget = {
@@ -345,6 +388,29 @@ export type Database = {
           last_error?: string | null;
         };
         Update: Partial<MetaPageConnection>;
+        Relationships: [];
+      };
+      campaigns: {
+        Row: Campaign;
+        Insert: Partial<Campaign> & { business_id: string; name: string };
+        Update: Partial<Campaign>;
+        Relationships: [];
+      };
+      campaign_contacts: {
+        Row: CampaignContact;
+        Insert: Partial<CampaignContact> & {
+          campaign_id: string;
+          business_id: string;
+          name: string;
+          phone: string;
+        };
+        Update: Partial<CampaignContact>;
+        Relationships: [];
+      };
+      do_not_call: {
+        Row: DoNotCall;
+        Insert: { business_id: string; phone: string; reason?: string | null };
+        Update: Partial<DoNotCall>;
         Relationships: [];
       };
       deliveries: {

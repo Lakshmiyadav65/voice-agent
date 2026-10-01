@@ -28,7 +28,7 @@ export type CreateLeadResult =
   | { ok: false; error: string };
 
 /** The employee that answers for a business: the requested one if it is theirs, else their first. */
-async function resolveEmployeeId(
+export async function resolveEmployeeId(
   supabase: AdminClient,
   businessId: string,
   requested?: string | null
@@ -106,28 +106,57 @@ export async function createLeadAndCall(
     return { ok: false, error: "Could not record the lead." };
   }
 
-  const result = await dispatchLeadCall({
-    aiEmployeeId,
-    customerName: input.name,
-    phoneNumber: input.phone,
-    reason: input.enquiry ?? undefined,
+  const called = await placeCallForLead(supabase, {
     leadId: lead.id,
+    businessId: input.businessId,
+    aiEmployeeId,
+    name: input.name,
+    phone: input.phone,
+    enquiry: input.enquiry,
     webhookUrl: input.webhookUrl,
   });
+  return { ok: true, leadId: lead.id, called: called.ok };
+}
 
-  if (!result.success) {
+export type CallTarget = {
+  leadId: string;
+  businessId: string;
+  aiEmployeeId: string | null;
+  name: string;
+  phone: string;
+  enquiry?: string | null;
+  webhookUrl?: string;
+};
+
+/**
+ * Dials an already-saved lead and records the attempt. Campaign retries come
+ * straight here so a second try adds a call to the same lead, not a new lead.
+ */
+export async function placeCallForLead(
+  supabase: AdminClient,
+  target: CallTarget
+): Promise<{ ok: true; attemptId: string } | { ok: false; error: string }> {
+  const result = await dispatchLeadCall({
+    aiEmployeeId: target.aiEmployeeId,
+    customerName: target.name,
+    phoneNumber: target.phone,
+    reason: target.enquiry ?? undefined,
+    leadId: target.leadId,
+    webhookUrl: target.webhookUrl,
+  });
+
+  if (!result.success || !result.attemptId) {
     // The lead is already saved, so the business can still follow up by hand.
-    await supabase.from("leads").update({ status: "unreachable" }).eq("id", lead.id);
-    return { ok: true, leadId: lead.id, called: false };
+    await supabase.from("leads").update({ status: "unreachable" }).eq("id", target.leadId);
+    return { ok: false, error: result.success ? "No call id returned" : result.error };
   }
 
   await supabase.from("call_attempts").insert({
-    lead_id: lead.id,
-    business_id: input.businessId,
-    attempt_id: result.attemptId!,
+    lead_id: target.leadId,
+    business_id: target.businessId,
+    attempt_id: result.attemptId,
     status: "dispatched",
   });
-  await supabase.from("leads").update({ status: "calling" }).eq("id", lead.id);
-
-  return { ok: true, leadId: lead.id, called: true };
+  await supabase.from("leads").update({ status: "calling" }).eq("id", target.leadId);
+  return { ok: true, attemptId: result.attemptId };
 }

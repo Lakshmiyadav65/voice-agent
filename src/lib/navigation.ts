@@ -25,6 +25,10 @@ export const ownerNav: NavGroup[] = [
     ],
   },
   {
+    label: "Outreach",
+    items: [{ label: "Campaigns", href: "/dashboard/campaigns" }],
+  },
+  {
     label: "Set up",
     items: [
       { label: "AI Employee", href: "/dashboard/ai-employee" },

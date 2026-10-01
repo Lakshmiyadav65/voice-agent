@@ -54,6 +54,13 @@ export const ownerPages = {
     emptyTitle: "No appointments yet",
     emptyDescription: "When a lead asks to visit or book a time on a call, they appear here with their preferred time.",
   },
+  campaigns: {
+    title: "Campaigns",
+    description: "Upload a list of numbers and your AI employee calls them for you, during calling hours, retrying anyone who doesn't pick up.",
+    breadcrumbs: [{ label: "Dashboard", href: "/dashboard" }, { label: "Campaigns" }],
+    emptyTitle: "No campaigns yet",
+    emptyDescription: "Create a campaign to call a list of past customers, enquiries or event sign-ups in one go.",
+  },
   businessHub: {
     title: "Business Information",
     description: "Manage the facts your AI employee uses — products, prices, stock, offers, and documents.",

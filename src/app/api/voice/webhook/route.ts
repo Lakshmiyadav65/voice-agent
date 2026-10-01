@@ -3,6 +3,7 @@ import { timingSafeEqual } from "crypto";
 import { after, NextResponse } from "next/server";
 
 import type { SarvamWebhookPayload } from "@/lib/sarvam/types";
+import { onCampaignCallFinished } from "@/lib/campaigns/engine";
 import { deliverCallResult } from "@/lib/delivery/deliver";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitizeCaptureFields } from "@/lib/voice/capture-fields";
@@ -96,6 +97,12 @@ export async function POST(request: Request) {
 
     // Answer Sarvam first; slow or failing destinations must not delay or fail its webhook.
     after(async () => {
+      try {
+        // Frees the campaign's line and schedules a retry if nobody picked up.
+        await onCampaignCallFinished(supabase, attempt.lead_id, payload.status);
+      } catch (err) {
+        console.error("[Campaigns] Failed to update contact for attempt", attempt.id, err);
+      }
       try {
         await deliverCallResult(supabase, attempt.id);
       } catch (err) {

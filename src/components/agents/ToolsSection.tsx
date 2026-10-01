@@ -6,12 +6,11 @@ import { input } from "./SettingsSection";
 type Props = {
   settings: AgentSettings;
   onChange: (settings: AgentSettings) => void;
-  onOpenSettings: () => void;
 };
 
 const EMPTY_TOOL: AgentTool = { name: "", whenToUse: "", method: "POST", url: "", params: [] };
 
-export function ToolsSection({ settings, onChange, onOpenSettings }: Props) {
+export function ToolsSection({ settings, onChange }: Props) {
   const { tools } = settings;
 
   function update(index: number, patch: Partial<AgentTool>) {
@@ -32,15 +31,6 @@ export function ToolsSection({ settings, onChange, onOpenSettings }: Props) {
               <p className="text-xs text-muted">Hangs up politely when the conversation is over.</p>
             </div>
             <span className="text-xs font-semibold text-accent">Always on</span>
-          </li>
-          <li className="flex items-center justify-between gap-3 px-4 py-3">
-            <div>
-              <p className="text-sm font-medium text-ink">Transfer call</p>
-              <p className="text-xs text-muted">Hands the caller to a person when they ask for one.</p>
-            </div>
-            <button type="button" onClick={onOpenSettings} className="text-xs font-semibold text-accent hover:underline">
-              {settings.callForwarding.enabled ? `On · ${settings.callForwarding.number}` : "Off · set up"}
-            </button>
           </li>
         </ul>
       </div>

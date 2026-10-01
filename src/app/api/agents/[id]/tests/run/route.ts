@@ -4,7 +4,7 @@ import { loadManagedAgent } from "@/lib/agents/load-agent";
 import { sanitizeAgentSettings } from "@/lib/voice/agent-settings";
 import { runAgentTest } from "@/lib/voice/agent-simulation";
 import { sanitizeTests } from "@/lib/voice/agent-tests";
-import { buildCallBrief, resolveEmployeeContext } from "@/lib/voice/dispatch-lead-call";
+import { prepareCallBrief, resolveEmployeeContext } from "@/lib/voice/dispatch-lead-call";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -27,7 +27,7 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   const context = await resolveEmployeeContext(employee.id);
   if (body?.settings) context.settings = sanitizeAgentSettings(body.settings);
-  const brief = buildCallBrief(context, { name: "Test Caller", phone: "+910000000000" });
+  const brief = await prepareCallBrief(context, { name: "Test Caller", phone: "+910000000000" });
 
   try {
     const run = await runAgentTest(brief, context.settings, test);

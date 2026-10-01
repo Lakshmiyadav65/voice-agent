@@ -16,6 +16,8 @@ export const SARVAM_PER_CALL_SETTINGS: ReadonlyArray<keyof AgentSettings> = [
   "variables",
   "greeting",
   "startingLanguage",
+  "allowedLanguages",
+  "switchLanguageDuringCall",
 ];
 
 export function toSarvamOverrides(
@@ -32,13 +34,14 @@ export function toSarvamOverrides(
 /**
  * Only the variables the Sarvam canvas defines are sent; custom variables are
  * already filled into the greeting and instructions on our side. The canvas
- * prompt is generic, so an owner's own instructions travel inside
- * business_description, ahead of the knowledge, and take priority.
+ * prompt is generic, so an owner's own instructions and the language rules
+ * travel inside business_description, ahead of the knowledge, and take priority.
  */
 export function toSarvamVariables(brief: CallBrief, settings: AgentSettings): Record<string, string> {
   const vars: Record<string, string> = {};
   for (const { key } of BUILT_IN_VARIABLES) vars[key] = brief.values[key] ?? "";
 
+  const sections: string[] = [];
   if (settings.instructions.trim()) {
     // Filled again without the knowledge, so a {{business_description}} in the
     // owner's text does not paste the knowledge in twice.
@@ -46,13 +49,11 @@ export function toSarvamVariables(brief: CallBrief, settings: AgentSettings): Re
       ...brief.values,
       business_description: "the business knowledge below",
     });
-    vars.business_description = [
-      "INSTRUCTIONS FROM THE BUSINESS (follow these over any general guidance):",
-      instructions,
-      "BUSINESS KNOWLEDGE:",
-      brief.knowledge,
-    ].join("\n\n");
+    sections.push("INSTRUCTIONS FROM THE BUSINESS (follow these over any general guidance):", instructions);
   }
+  sections.push("LANGUAGE (follow this exactly, over any other guidance):", brief.languageRules);
+  sections.push("BUSINESS KNOWLEDGE:", brief.knowledge);
+  vars.business_description = sections.join("\n\n");
 
   return vars;
 }

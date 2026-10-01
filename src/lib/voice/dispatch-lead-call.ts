@@ -5,10 +5,12 @@ import {
   DEFAULT_AGENT_SETTINGS,
   effectiveInstructions,
   fillTemplate,
+  languageRules,
   sanitizeAgentSettings,
   type AgentSettings,
 } from "@/lib/voice/agent-settings";
 import { captureBriefing, sanitizeCaptureFields } from "@/lib/voice/capture-fields";
+import { localizeGreeting } from "@/lib/voice/localize-greeting";
 
 const KNOWLEDGE_CHAR_LIMIT = 7500;
 
@@ -114,6 +116,8 @@ export type CallBrief = {
   greeting: string;
   /** The full instructions with every variable filled, as the agent should read them. */
   instructions: string;
+  /** The language settings spelled out, since providers only take a starting language. */
+  languageRules: string;
 };
 
 /**
@@ -149,7 +153,18 @@ export function buildCallBrief(
     knowledge,
     greeting: fillTemplate(greetingOverride || context.settings.greeting, values),
     instructions: fillTemplate(effectiveInstructions(context.settings), values),
+    languageRules: languageRules(context.settings),
   };
+}
+
+/** The brief with its greeting translated into the starting language, as the caller will hear it. */
+export async function prepareCallBrief(
+  context: ResolvedContext,
+  lead: { name: string; phone: string; reason?: string },
+  greetingOverride?: string
+): Promise<CallBrief> {
+  const brief = buildCallBrief(context, lead, greetingOverride);
+  return { ...brief, greeting: await localizeGreeting(brief.greeting, context.settings.startingLanguage) };
 }
 
 export async function dispatchLeadCall(
@@ -163,7 +178,7 @@ export async function dispatchLeadCall(
 
   const context = await resolveEmployeeContext(options.aiEmployeeId);
 
-  const brief = buildCallBrief(
+  const brief = await prepareCallBrief(
     context,
     { name: customerName, phone: options.phoneNumber, reason: options.reason },
     options.initialBotMessage

@@ -48,9 +48,8 @@ function agentSystemPrompt(brief: CallBrief, settings: AgentSettings): string {
   return [
     brief.instructions,
     knowledgeInline ? "" : `BUSINESS KNOWLEDGE:\n${brief.knowledge}`,
-    `This is a live phone call. Reply with only the words you would say aloud: one to three short sentences, no lists, no stage directions. Start in ${settings.startingLanguage}${
-      settings.switchLanguageDuringCall ? " and switch if the caller does" : ""
-    }.`,
+    `LANGUAGE (follow this exactly): ${brief.languageRules}`,
+    "This is a live phone call. Reply with only the words you would say aloud: one to three short sentences, no lists, no stage directions.",
   ]
     .filter(Boolean)
     .join("\n\n");

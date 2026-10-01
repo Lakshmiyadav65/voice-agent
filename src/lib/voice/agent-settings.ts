@@ -265,6 +265,20 @@ function sanitizeTools(value: unknown): AgentTool[] {
   return out;
 }
 
+/**
+ * The language settings as plain rules. Providers that only take a starting
+ * language would otherwise ignore the allowed set and the switch toggle, so
+ * every call and every simulation carries these words.
+ */
+export function languageRules(settings: AgentSettings): string {
+  const start = settings.startingLanguage;
+  const others = settings.allowedLanguages.filter((l) => l !== start);
+  if (settings.switchLanguageDuringCall && others.length) {
+    return `Open the call in ${start} and keep speaking ${start}. If the caller speaks ${others.join(" or ")}, switch to that language. Never reply in any other language; if the caller uses one, continue in ${start}.`;
+  }
+  return `Speak only ${start} for the whole call, from the first word to the last, even if the caller uses another language.`;
+}
+
 /** The instructions the agent actually follows: the owner's own, or the standard ones. */
 export function effectiveInstructions(settings: AgentSettings): string {
   return settings.instructions.trim() || DEFAULT_INSTRUCTIONS;

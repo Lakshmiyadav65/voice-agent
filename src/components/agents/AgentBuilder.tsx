@@ -52,9 +52,6 @@ function findProblem(settings: AgentSettings, tests: AgentTest[]): { section: Se
     if (!keyFromName(tool.name)) return { section: "tools", message: "Give every API tool a name." };
     if (!/^https:\/\/[^\s/]+\.[^\s]+$/i.test(tool.url)) return { section: "tools", message: `Give "${tool.name}" a public https:// address.` };
   }
-  if (settings.callForwarding.enabled && settings.callForwarding.number.replace(/\D/g, "").length < 10) {
-    return { section: "settings", message: "Add the number to forward calls to, or turn call forwarding off." };
-  }
   if (tests.some((t) => !t.name.trim())) return { section: "tests", message: "Give every test a name." };
   return null;
 }
@@ -269,7 +266,7 @@ export function AgentBuilder({ agentId, initialName, initialSettings, initialTes
             ) : section === "variables" ? (
               <VariablesSection settings={settings} onChange={edit(setSettings)} />
             ) : section === "tools" ? (
-              <ToolsSection settings={settings} onChange={edit(setSettings)} onOpenSettings={() => go("settings")} />
+              <ToolsSection settings={settings} onChange={edit(setSettings)} />
             ) : section === "settings" ? (
               <SettingsSection settings={settings} onChange={edit(setSettings)} />
             ) : (

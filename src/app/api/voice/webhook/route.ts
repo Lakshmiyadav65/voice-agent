@@ -71,12 +71,13 @@ export async function POST(request: Request) {
       captureFields
     );
 
-    await supabase
+    const { error: saveError } = await supabase
       .from("call_attempts")
       .update({
         status: payload.status,
         interaction_id: payload.interaction_id,
-        duration: payload.duration,
+        // Sarvam reports fractional seconds; the column is whole seconds.
+        duration: typeof payload.duration === "number" ? Math.round(payload.duration) : null,
         failure_reason: payload.failure_reason,
         transcript: payload.interaction_transcript,
         final_variables: payload.final_agent_variables,
@@ -90,6 +91,12 @@ export async function POST(request: Request) {
         captured: analysis.captured,
       })
       .eq("id", attempt.id);
+
+    if (saveError) {
+      // Fail loudly so Sarvam can retry; answering 200 here silently loses the call.
+      console.error("[Sarvam Voice Webhook] Could not save attempt", attempt.id, saveError, JSON.stringify(payload));
+      return NextResponse.json({ error: "Could not save call result" }, { status: 500 });
+    }
 
     await supabase
       .from("leads")

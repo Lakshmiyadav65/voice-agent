@@ -2,7 +2,23 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
+import { isPlatformStaff } from "@/lib/auth/roles";
+import { getSessionContext } from "@/lib/auth/session";
+
+/** One Sarvam agent serves every business, so only platform staff may view or change it. */
+async function requireStaff() {
+  const session = await getSessionContext();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isPlatformStaff(session.profile.platform_role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  return null;
+}
+
 export async function GET() {
+  const denied = await requireStaff();
+  if (denied) return denied;
+
   return NextResponse.json({
     apiKeyConfigured: Boolean(process.env.SARVAM_API_KEY),
     orgId: process.env.SARVAM_ORG_ID || "",
@@ -15,6 +31,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const denied = await requireStaff();
+  if (denied) return denied;
+
   try {
     const { agentId, connectionId, agentPhoneNumber, agentVersion } = await request.json();
 

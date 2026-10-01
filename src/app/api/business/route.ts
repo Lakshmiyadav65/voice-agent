@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { canAccessBusiness, getAccessScope, primaryBusinessId } from "@/lib/auth/access";
 import { getSessionContext } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -14,32 +15,16 @@ export async function GET() {
       return NextResponse.json({ error: "Database client unavailable" }, { status: 500 });
     }
 
-    // 1. Check membership
-    const { data: membership } = await supabase
-      .from("business_members")
-      .select("business_id")
-      .eq("user_id", session.userId)
-      .limit(1)
-      .maybeSingle();
+    const businessId = primaryBusinessId(await getAccessScope(supabase, session));
 
     let business = null;
-    if (membership?.business_id) {
+    if (businessId) {
       const { data } = await supabase
         .from("businesses")
         .select("*")
-        .eq("id", membership.business_id)
+        .eq("id", businessId)
         .single();
       business = data;
-    }
-
-    if (!business) {
-      const { data: anyBiz } = await supabase
-        .from("businesses")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      business = anyBiz;
     }
 
     return NextResponse.json({ business });
@@ -67,30 +52,12 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Database client unavailable" }, { status: 500 });
     }
 
-    let targetId = businessId;
-    if (!targetId) {
-      const { data: membership } = await supabase
-        .from("business_members")
-        .select("business_id")
-        .eq("user_id", session.userId)
-        .limit(1)
-        .maybeSingle();
-      targetId = membership?.business_id;
+    const scope = await getAccessScope(supabase, session);
+    if (businessId && !canAccessBusiness(scope, businessId)) {
+      return NextResponse.json({ error: "Business not found" }, { status: 404 });
     }
 
-    if (!targetId) {
-      // Find latest business or create one
-      const { data: anyBiz } = await supabase
-        .from("businesses")
-        .select("id")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (anyBiz?.id) {
-        targetId = anyBiz.id;
-      }
-    }
+    const targetId = businessId || primaryBusinessId(scope);
 
     if (targetId) {
       const { data: updated, error } = await supabase

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { canAccessBusiness, getAccessScope } from "@/lib/auth/access";
 import { getSessionContext } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -23,6 +24,16 @@ export async function GET(request: Request) {
     const supabase = createAdminClient();
     if (!supabase) {
       return NextResponse.json({ error: "Database client unavailable" }, { status: 500 });
+    }
+
+    // Chunks are filtered by document or employee alone, so resolve the owning business first.
+    const { data: owner } = documentId
+      ? await supabase.from("knowledge_documents").select("business_id").eq("id", documentId).maybeSingle()
+      : await supabase.from("ai_employees").select("business_id").eq("id", aiEmployeeId!).maybeSingle();
+
+    const scope = await getAccessScope(supabase, session);
+    if (!owner || !canAccessBusiness(scope, owner.business_id)) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
     let queryBuilder = supabase

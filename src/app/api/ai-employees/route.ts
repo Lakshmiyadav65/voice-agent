@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { canAccessBusiness, getAccessScope, primaryBusinessId } from "@/lib/auth/access";
 import { getSessionContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -14,26 +15,23 @@ export async function GET(request: Request) {
     const businessIdParam = searchParams.get("businessId");
 
     const supabase = (await createClient()) || createAdminClient();
-    if (!supabase) {
+    const adminClient = createAdminClient();
+    if (!supabase || !adminClient) {
       return NextResponse.json({ error: "Database not configured" }, { status: 500 });
     }
 
-    let businessId = businessIdParam;
-
-    if (!businessId) {
-      // Find business from business_members
-      const { data: membership } = await supabase
-        .from("business_members")
-        .select("business_id")
-        .eq("user_id", session.userId)
-        .limit(1)
-        .maybeSingle();
-
-      businessId = membership?.business_id ?? null;
+    const scope = await getAccessScope(adminClient, session);
+    if (businessIdParam && !canAccessBusiness(scope, businessIdParam)) {
+      return NextResponse.json({ error: "Business not found" }, { status: 404 });
     }
 
+    const businessId = businessIdParam || primaryBusinessId(scope);
+
     if (!businessId) {
-      // Platform staff / admin can see all
+      if (!scope.staff) {
+        return NextResponse.json({ employees: [] });
+      }
+
       const { data: allEmployees, error: err } = await supabase
         .from("ai_employees")
         .select("*, businesses(name)")
@@ -75,35 +73,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Employee name is required" }, { status: 400 });
     }
 
-    const supabase = (await createClient()) || createAdminClient();
-    const adminClient = createAdminClient() || supabase;
+    const adminClient = createAdminClient();
     if (!adminClient) {
       return NextResponse.json({ error: "Database client unavailable" }, { status: 500 });
     }
 
-    let businessId = providedBusinessId;
-
-    if (!businessId) {
-      const { data: membership } = await adminClient
-        .from("business_members")
-        .select("business_id")
-        .eq("user_id", session.userId)
-        .limit(1)
-        .maybeSingle();
-
-      businessId = membership?.business_id;
+    const scope = await getAccessScope(adminClient, session);
+    if (providedBusinessId && !canAccessBusiness(scope, providedBusinessId)) {
+      return NextResponse.json({ error: "Business not found" }, { status: 404 });
     }
 
-    if (!businessId) {
-      // If no business linked yet, fetch any existing active business or create one
-      const { data: defaultBiz } = await adminClient
-        .from("businesses")
-        .select("id")
-        .limit(1)
-        .maybeSingle();
-
-      businessId = defaultBiz?.id;
-    }
+    let businessId = providedBusinessId || primaryBusinessId(scope);
 
     if (!businessId) {
       // Auto-create a business for this user

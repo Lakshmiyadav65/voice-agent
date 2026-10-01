@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { canAccessBusiness, getAccessScope, loadAccessibleEmployee } from "@/lib/auth/access";
 import { getSessionContext } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -21,14 +22,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Database client unavailable" }, { status: 500 });
     }
 
-    // Resolve employee's business_id
-    const { data: employee } = await supabase
-      .from("ai_employees")
-      .select("business_id")
-      .eq("id", aiEmployeeId)
-      .maybeSingle();
+    const employee = await loadAccessibleEmployee(supabase, session, aiEmployeeId);
+    if (!employee) {
+      return NextResponse.json({ error: "AI Employee not found" }, { status: 404 });
+    }
 
-    const businessId = employee?.business_id;
+    const businessId = employee.business_id;
 
     // Fetch documents from Supabase
     let documents: any[] = [];
@@ -52,7 +51,8 @@ export async function GET(request: Request) {
       // Count chunks per document directly from knowledge_chunks table
       const { data: chunkList } = await supabase
         .from("knowledge_chunks")
-        .select("document_id");
+        .select("document_id")
+        .in("document_id", documents.map((d) => d.id));
 
       const countMap: Record<string, number> = {};
       if (chunkList) {
@@ -123,16 +123,27 @@ export async function DELETE(request: Request) {
     }
 
     const supabase = createAdminClient();
-    if (supabase) {
-      try {
-        await supabase.from("knowledge_chunks").delete().eq("document_id", documentId);
-        await supabase.from("knowledge_documents").delete().eq("id", documentId);
-      } catch {
-        // ignore
-      }
+    if (!supabase) {
+      return NextResponse.json({ error: "Database client unavailable" }, { status: 500 });
     }
 
-    // Also delete from local store
+    const scope = await getAccessScope(supabase, session);
+    const { data: doc } = await supabase
+      .from("knowledge_documents")
+      .select("business_id")
+      .eq("id", documentId)
+      .maybeSingle();
+
+    // Documents only in the local fallback cache carry no business, so only staff may clear them.
+    if (doc ? !canAccessBusiness(scope, doc.business_id) : !scope.staff) {
+      return NextResponse.json({ error: "Document not found" }, { status: 404 });
+    }
+
+    if (doc) {
+      await supabase.from("knowledge_chunks").delete().eq("document_id", documentId);
+      await supabase.from("knowledge_documents").delete().eq("id", documentId);
+    }
+
     const { localRagStore } = await import("@/lib/rag/local-cache");
     localRagStore.deleteDocument(documentId);
 

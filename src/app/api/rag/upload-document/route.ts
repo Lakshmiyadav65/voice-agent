@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { loadAccessibleEmployee } from "@/lib/auth/access";
 import { getSessionContext } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { RecursiveCharacterTextSplitter } from "@/lib/rag/text-splitter";
@@ -30,49 +31,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Database client unavailable" }, { status: 500 });
     }
 
-    // 1. Resolve employee and verify valid business ID
-    const { data: employee, error: empErr } = await supabase
-      .from("ai_employees")
-      .select("id, business_id, name")
-      .eq("id", aiEmployeeId)
-      .maybeSingle();
-
-    if (empErr || !employee) {
+    // 1. Resolve the employee, refusing ones that belong to another business
+    const employee = await loadAccessibleEmployee(supabase, session, aiEmployeeId);
+    if (!employee) {
       return NextResponse.json({ error: "AI Employee not found in database" }, { status: 404 });
     }
 
-    let businessId = employee.business_id;
-
-    // Verify businessId exists in businesses table to avoid foreign key violations
-    const { data: validBiz } = await supabase
-      .from("businesses")
-      .select("id")
-      .eq("id", businessId)
-      .maybeSingle();
-
-    if (!validBiz) {
-      const { data: anyBiz } = await supabase
-        .from("businesses")
-        .select("id")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (anyBiz?.id) {
-        businessId = anyBiz.id;
-        await supabase
-          .from("ai_employees")
-          .update({ business_id: businessId })
-          .eq("id", aiEmployeeId);
-      }
-    }
-
-    if (!businessId) {
-      return NextResponse.json(
-        { error: "Could not resolve an active business for this employee. Please create a business first." },
-        { status: 400 }
-      );
-    }
+    const businessId = employee.business_id;
 
     // 2. Extract text from file buffer
     const arrayBuffer = await file.arrayBuffer();

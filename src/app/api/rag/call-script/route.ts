@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { loadAccessibleEmployee } from "@/lib/auth/access";
 import { getSessionContext } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateBusinessCallScript, BusinessCallScript } from "@/lib/rag/qa-engine";
@@ -23,11 +24,7 @@ export async function GET(request: Request) {
     }
 
     // 1. Fetch AI employee details & business
-    const { data: employee } = await supabase
-      .from("ai_employees")
-      .select("*, businesses(name)")
-      .eq("id", aiEmployeeId)
-      .single();
+    const employee = await loadAccessibleEmployee(supabase, session, aiEmployeeId);
 
     if (!employee) {
       return NextResponse.json({ error: "AI Employee not found" }, { status: 404 });
@@ -97,11 +94,7 @@ export async function POST(request: Request) {
     }
 
     // Fetch employee and business
-    const { data: employee } = await supabase
-      .from("ai_employees")
-      .select("*, businesses(name)")
-      .eq("id", aiEmployeeId)
-      .single();
+    const employee = await loadAccessibleEmployee(supabase, session, aiEmployeeId);
 
     if (!employee) {
       return NextResponse.json({ error: "AI Employee not found" }, { status: 404 });
@@ -216,11 +209,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Database client unavailable" }, { status: 500 });
     }
 
-    const { data: employee } = await supabase
-      .from("ai_employees")
-      .select("business_id")
-      .eq("id", aiEmployeeId)
-      .single();
+    const employee = await loadAccessibleEmployee(supabase, session, aiEmployeeId);
 
     if (!employee) {
       return NextResponse.json({ error: "AI Employee not found" }, { status: 404 });

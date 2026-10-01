@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { loadAccessibleEmployee } from "@/lib/auth/access";
 import { getSessionContext } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SupabaseVectorStore } from "@/lib/rag/vector-store";
@@ -28,11 +29,7 @@ export async function POST(request: Request) {
     }
 
     // Fetch employee and business info
-    const { data: employee } = await supabase
-      .from("ai_employees")
-      .select("*, businesses(name)")
-      .eq("id", aiEmployeeId)
-      .single();
+    const employee = await loadAccessibleEmployee(supabase, session, aiEmployeeId);
 
     if (!employee) {
       return NextResponse.json({ error: "AI Employee not found" }, { status: 404 });

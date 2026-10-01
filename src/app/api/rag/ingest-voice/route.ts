@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { loadAccessibleEmployee } from "@/lib/auth/access";
 import { getSessionContext } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { RecursiveCharacterTextSplitter } from "@/lib/rag/text-splitter";
@@ -15,7 +16,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       aiEmployeeId,
-      businessId: explicitBusinessId,
       businessName,
       transcriptText,
       title = "Spoken Business Overview & Product Details",
@@ -35,44 +35,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Database client unavailable" }, { status: 500 });
     }
 
-    // Resolve businessId
-    let businessId = explicitBusinessId;
-    if (!businessId) {
-      const { data: employee } = await supabase
-        .from("ai_employees")
-        .select("business_id")
-        .eq("id", aiEmployeeId)
-        .single();
-      businessId = employee?.business_id;
+    const employee = await loadAccessibleEmployee(supabase, session, aiEmployeeId);
+    if (!employee) {
+      return NextResponse.json({ error: "AI Employee not found" }, { status: 404 });
     }
 
-    // Validate businessId exists in businesses table
-    const { data: validBiz } = await supabase
-      .from("businesses")
-      .select("id")
-      .eq("id", businessId)
-      .maybeSingle();
-
-    if (!validBiz) {
-      const { data: anyBiz } = await supabase
-        .from("businesses")
-        .select("id")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (anyBiz?.id) {
-        businessId = anyBiz.id;
-        await supabase
-          .from("ai_employees")
-          .update({ business_id: businessId })
-          .eq("id", aiEmployeeId);
-      }
-    }
-
-    if (!businessId) {
-      return NextResponse.json({ error: "Could not resolve business ID for employee" }, { status: 400 });
-    }
+    const businessId = employee.business_id;
 
     // Update business name if provided
     if (businessName && businessName.trim()) {

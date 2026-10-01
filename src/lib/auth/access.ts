@@ -58,3 +58,24 @@ export async function loadAccessibleEmployee(
   const scope = await getAccessScope(supabase, session);
   return canAccessBusiness(scope, employee.business_id) ? employee : null;
 }
+
+/**
+ * Stricter than canAccessBusiness: only owners (and staff) may change where a
+ * business's lead data is sent, since a webhook receives every lead's phone number.
+ */
+export async function canManageBusiness(
+  supabase: AdminClient,
+  session: SessionContext,
+  businessId: string
+): Promise<boolean> {
+  if (isPlatformStaff(session.profile.platform_role)) return true;
+
+  const { data } = await supabase
+    .from("business_members")
+    .select("role")
+    .eq("user_id", session.userId)
+    .eq("business_id", businessId)
+    .maybeSingle();
+
+  return data?.role === "owner";
+}

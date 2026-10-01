@@ -119,6 +119,34 @@ export type CallAttempt = {
   updated_at: string;
 };
 
+export type DeliveryKind = "email" | "sheet" | "webhook";
+
+export type DeliveryTarget = {
+  id: string;
+  business_id: string;
+  kind: DeliveryKind;
+  destination: string;
+  secret: string;
+  enabled: boolean;
+  last_status: "sent" | "failed" | null;
+  last_error: string | null;
+  last_sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Delivery = {
+  id: string;
+  target_id: string;
+  business_id: string;
+  call_attempt_id: string;
+  status: "pending" | "sent" | "failed";
+  response_code: number | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CallOutcomeLabel =
   | "interested"
   | "not_interested"
@@ -265,6 +293,36 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<CallAttempt>;
+        Relationships: [];
+      };
+      delivery_targets: {
+        Row: DeliveryTarget;
+        Insert: {
+          id?: string;
+          business_id: string;
+          kind: DeliveryKind;
+          destination: string;
+          secret?: string;
+          enabled?: boolean;
+          last_status?: DeliveryTarget["last_status"];
+          last_error?: string | null;
+          last_sent_at?: string | null;
+        };
+        Update: Partial<DeliveryTarget>;
+        Relationships: [];
+      };
+      deliveries: {
+        Row: Delivery;
+        Insert: {
+          id?: string;
+          target_id: string;
+          business_id: string;
+          call_attempt_id: string;
+          status?: Delivery["status"];
+          response_code?: number | null;
+          error?: string | null;
+        };
+        Update: Partial<Delivery>;
         Relationships: [];
       };
     };

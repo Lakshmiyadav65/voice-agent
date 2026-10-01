@@ -1,8 +1,9 @@
 import { timingSafeEqual } from "crypto";
 
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 import type { SarvamWebhookPayload } from "@/lib/sarvam/types";
+import { deliverCallResult } from "@/lib/delivery/deliver";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { analyzeCall } from "@/lib/voice/summarize-call";
 
@@ -79,6 +80,15 @@ export async function POST(request: Request) {
       .from("leads")
       .update({ status: LEAD_STATUS_BY_CALL_STATUS[payload.status] ?? "contacted" })
       .eq("id", attempt.lead_id);
+
+    // Answer Sarvam first; slow or failing destinations must not delay or fail its webhook.
+    after(async () => {
+      try {
+        await deliverCallResult(supabase, attempt.id);
+      } catch (err) {
+        console.error("[Result delivery] Failed for attempt", attempt.id, err);
+      }
+    });
 
     return NextResponse.json({ received: true, attempt_id: payload.attempt_id });
   } catch (err: any) {

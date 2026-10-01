@@ -151,10 +151,8 @@ export const ownerPages = {
   },
   settings: {
     title: "Settings",
-    description: "Business profile, notifications, and account preferences.",
+    description: "Links for your ads, and your account preferences.",
     breadcrumbs: [{ label: "Dashboard", href: "/dashboard" }, { label: "Settings" }],
-    comingInPhase: "Phase 4",
-    features: ["Business profile and timezone", "Notification preferences", "Team members (future)"],
   },
 } satisfies Record<string, PageMeta>;
 

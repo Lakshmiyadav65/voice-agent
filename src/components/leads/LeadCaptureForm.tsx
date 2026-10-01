@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { attributionFromSearch, sourceFromAttribution } from "@/lib/leads/attribution";
+
 type Phase = "idle" | "submitting" | "done" | "error";
 
 export function LeadCaptureForm({
@@ -24,6 +26,9 @@ export function LeadCaptureForm({
     event.preventDefault();
     setPhase("submitting");
 
+    // Read at submit time: the ad's tags only live in the landing URL.
+    const utm = attributionFromSearch(window.location.search);
+
     try {
       const res = await fetch("/api/leads/intake", {
         method: "POST",
@@ -34,7 +39,8 @@ export function LeadCaptureForm({
           name,
           phone,
           enquiry,
-          source: "hosted_form",
+          source: sourceFromAttribution(utm) ?? "hosted_form",
+          utm,
           company_website: honeypot,
         }),
       });

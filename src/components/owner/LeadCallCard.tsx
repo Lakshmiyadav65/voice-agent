@@ -1,4 +1,6 @@
 import type { CallAttempt, Lead } from "@/lib/database.types";
+import { secondsToFirstCall, type LeadWithCalls } from "@/lib/data/leads";
+import { campaignOf, sourceLabel } from "@/lib/leads/attribution";
 
 const STATUS_STYLES: Record<Lead["status"], string> = {
   new: "bg-border/40 text-foreground",
@@ -17,13 +19,21 @@ function formatDateTime(value: string | null): string | null {
   });
 }
 
+function formatWait(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const mins = Math.floor(seconds / 60);
+  return mins < 60 ? `${mins}m ${seconds % 60}s` : `${Math.floor(mins / 60)}h ${mins % 60}m`;
+}
+
 type LeadCallCardProps = {
-  lead: Lead;
+  lead: LeadWithCalls;
   attempt: CallAttempt | null;
 };
 
 export function LeadCallCard({ lead, attempt }: LeadCallCardProps) {
   const visitAt = formatDateTime(attempt?.preferred_visit_at ?? null);
+  const campaign = campaignOf(lead.utm);
+  const waited = secondsToFirstCall(lead);
 
   return (
     <article className="rounded-xl border border-border bg-surface p-5">
@@ -47,6 +57,25 @@ export function LeadCallCard({ lead, attempt }: LeadCallCardProps) {
             {lead.status}
           </span>
         </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2 text-xs">
+        <span className="rounded-full border border-border px-2.5 py-1 text-foreground">
+          <span className="text-muted">Source: </span>
+          {sourceLabel(lead.source)}
+        </span>
+        {campaign ? (
+          <span className="rounded-full border border-border px-2.5 py-1 text-foreground">
+            <span className="text-muted">Campaign: </span>
+            {campaign}
+          </span>
+        ) : null}
+        {waited !== null ? (
+          <span className="rounded-full border border-border px-2.5 py-1 text-foreground">
+            <span className="text-muted">Called in: </span>
+            {formatWait(waited)}
+          </span>
+        ) : null}
       </div>
 
       {lead.enquiry ? (

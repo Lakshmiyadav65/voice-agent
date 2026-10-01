@@ -33,7 +33,7 @@ export const ownerNav: NavGroup[] = [
   },
   {
     label: "Account",
-    items: [{ label: "Settings", href: "/dashboard/settings", soon: true }],
+    items: [{ label: "Settings", href: "/dashboard/settings" }],
   },
 ];
 

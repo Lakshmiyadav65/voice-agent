@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { formatE164PhoneNumber } from "@/lib/sarvam/client";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sanitizeAttribution, sourceFromAttribution } from "@/lib/leads/attribution";
 import { checkSubmissionAllowed, clientIpFrom, hashIp } from "@/lib/leads/rate-limit";
 import { dispatchLeadCall } from "@/lib/voice/dispatch-lead-call";
 import { resolveWebhookUrl } from "@/lib/voice/webhook-url";
@@ -81,6 +82,7 @@ export async function POST(request: Request) {
 
     const aiEmployeeId = clean(body.aiEmployeeId);
     const enquiry = clean(body.enquiry);
+    const utm = sanitizeAttribution(body.utm);
 
     const { data: lead, error: insertError } = await supabase
       .from("leads")
@@ -91,8 +93,9 @@ export async function POST(request: Request) {
         phone,
         email: clean(body.email) ?? null,
         enquiry: enquiry ?? null,
-        source: clean(body.source) ?? "ad_form",
-        utm: typeof body.utm === "object" && body.utm ? body.utm : {},
+        // Client sites posting directly may send tags without naming a source.
+        source: clean(body.source)?.slice(0, 50) ?? sourceFromAttribution(utm) ?? "ad_form",
+        utm,
         ip_hash: ipHash,
         status: "new",
       })

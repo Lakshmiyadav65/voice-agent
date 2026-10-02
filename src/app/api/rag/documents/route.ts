@@ -1,7 +1,12 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { canAccessBusiness, getAccessScope, loadAccessibleEmployee } from "@/lib/auth/access";
 import { getSessionContext } from "@/lib/auth/session";
+import { syncBusinessKnowledge } from "@/lib/dograh/knowledge";
+import { indexDocument } from "@/lib/rag/index-document";
+import { generateDocumentSummary } from "@/lib/rag/qa-engine";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+const MAX_DOCUMENT_CHARS = 200_000;
 
 export async function GET(request: Request) {
   try {
@@ -142,6 +147,7 @@ export async function DELETE(request: Request) {
     if (doc) {
       await supabase.from("knowledge_chunks").delete().eq("document_id", documentId);
       await supabase.from("knowledge_documents").delete().eq("id", documentId);
+      after(() => syncBusinessKnowledge(supabase, doc.business_id));
     }
 
     const { localRagStore } = await import("@/lib/rag/local-cache");
@@ -151,4 +157,56 @@ export async function DELETE(request: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "Failed to delete document" }, { status: 500 });
   }
+}
+
+/**
+ * Owners correct a knowledge item in place: new text is re-chunked for search
+ * and copied to their Dograh agent, so the next call already knows the change.
+ */
+export async function PATCH(request: Request) {
+  const session = await getSessionContext();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const supabase = createAdminClient();
+  if (!supabase) return NextResponse.json({ error: "Database client unavailable" }, { status: 500 });
+
+  const body = await request.json().catch(() => null);
+  const name = typeof body?.name === "string" ? body.name.trim() : "";
+  const text = typeof body?.text === "string" ? body.text.replace(/\r\n/g, "\n").trim() : "";
+  if (!name || !text) return NextResponse.json({ error: "Give the item a title and some text." }, { status: 400 });
+  if (text.length > MAX_DOCUMENT_CHARS) {
+    return NextResponse.json({ error: "That is too long for one item. Split it into a few." }, { status: 400 });
+  }
+
+  const { data: doc } = await supabase
+    .from("knowledge_documents")
+    .select("*")
+    .eq("id", String(body?.id ?? ""))
+    .maybeSingle();
+  const scope = await getAccessScope(supabase, session);
+  if (!doc || !canAccessBusiness(scope, doc.business_id)) {
+    return NextResponse.json({ error: "Document not found" }, { status: 404 });
+  }
+
+  const textChanged = text !== doc.raw_text;
+  const summary = textChanged ? await generateDocumentSummary(text, name) : doc.summary;
+  const { data: updated, error } = await supabase
+    .from("knowledge_documents")
+    .update({ name, raw_text: text, summary })
+    .eq("id", doc.id)
+    .select("*")
+    .single();
+  if (error || !updated) return NextResponse.json({ error: "Could not save the change." }, { status: 500 });
+
+  if (textChanged) {
+    await supabase.from("knowledge_chunks").delete().eq("document_id", doc.id);
+    const chunkIds = await indexDocument(supabase, updated, text);
+    await supabase
+      .from("knowledge_documents")
+      .update({ metadata: { ...(updated.metadata || {}), chunk_count: chunkIds.length } })
+      .eq("id", doc.id);
+  }
+
+  after(() => syncBusinessKnowledge(supabase, doc.business_id));
+  return NextResponse.json({ document: updated });
 }

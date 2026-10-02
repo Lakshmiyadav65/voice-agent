@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 import { AgentGlyph, PlusIcon, SearchIcon } from "./icons";
 
@@ -10,19 +10,49 @@ export type AgentRow = { id: string; name: string; status: string; updatedAt: st
 
 const STATUS_LABEL: Record<string, string> = { draft: "Draft", testing: "Testing", live: "Live", paused: "Paused" };
 
-function timeAgo(iso: string): string {
-  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+// A shared minute clock. The server snapshot is null, so the first client render matches the
+// server HTML and the relative times fill in right after hydration.
+let clockNow = 0;
+function subscribeClock(onTick: () => void) {
+  // React re-reads the snapshot after subscribing, so a page reopened later starts fresh.
+  clockNow = Date.now();
+  const timer = setInterval(() => {
+    clockNow = Date.now();
+    onTick();
+  }, 60_000);
+  return () => clearInterval(timer);
+}
+function useNow(): number | null {
+  return useSyncExternalStore(
+    subscribeClock,
+    () => clockNow || (clockNow = Date.now()),
+    () => null
+  );
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  });
+}
+
+function timeAgo(iso: string, now: number): string {
+  const minutes = Math.round((now - new Date(iso).getTime()) / 60000);
   if (minutes < 1) return "just now";
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.round(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
   const days = Math.round(hours / 24);
   if (days < 30) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  return formatDate(iso);
 }
 
 export function AgentsHome({ agents, canCreate }: { agents: AgentRow[]; canCreate: boolean }) {
   const router = useRouter();
+  const now = useNow();
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
@@ -100,7 +130,9 @@ export function AgentsHome({ agents, canCreate }: { agents: AgentRow[]; canCreat
                         {STATUS_LABEL[agent.status] ?? agent.status}
                       </span>
                     </span>
-                    <span className="text-sm text-muted">{timeAgo(agent.updatedAt)}</span>
+                    <span className="text-sm text-muted">
+                      {now === null ? formatDate(agent.updatedAt) : timeAgo(agent.updatedAt, now)}
+                    </span>
                   </Link>
                 </li>
               ))}

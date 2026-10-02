@@ -1,7 +1,9 @@
 import { AppSectionPage } from "@/components/shell/AppSectionPage";
+import { AddClientForm } from "@/components/trainer/AddClientForm";
 import { BusinessCreditsRow } from "@/components/trainer/BusinessCreditsRow";
 import { requireTrainerAccess } from "@/lib/auth/session";
 import { formatRupees, isBillingEnforced } from "@/lib/billing/credits";
+import { listDograhAgents } from "@/lib/dograh/client";
 import { trainerPages } from "@/lib/pages";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -9,18 +11,33 @@ export default async function TrainerBusinessesPage() {
   await requireTrainerAccess();
   const supabase = createAdminClient();
 
-  const [{ data: businesses }, { data: balances }] = supabase
-    ? await Promise.all([
-        supabase.from("businesses").select("id, name, rate_per_minute_paise").order("name"),
-        supabase.from("business_balances").select("business_id, balance_paise"),
-      ])
-    : [{ data: null }, { data: null }];
+  const [[{ data: businesses }, { data: balances }], agents] = await Promise.all([
+    supabase
+      ? Promise.all([
+          supabase.from("businesses").select("id, name, rate_per_minute_paise").order("name"),
+          supabase.from("business_balances").select("business_id, balance_paise"),
+        ])
+      : [{ data: null }, { data: null }],
+    listDograhAgents(),
+  ]);
 
   const balanceOf = new Map((balances ?? []).map((b) => [b.business_id, Number(b.balance_paise)]));
   const list = businesses ?? [];
 
   return (
     <AppSectionPage meta={{ ...trainerPages.businesses, comingInPhase: undefined }} showEmpty={list.length === 0}>
+      <section className="mb-10">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Clients</h2>
+        <p className="mt-1 mb-4 text-sm text-muted">
+          Create a client&apos;s login, business and AI employee, then send them the login details. Build their
+          agent in Dograh first, so you can link it here.
+        </p>
+        <AddClientForm
+          agents={agents.ok ? agents.data : []}
+          agentsError={agents.ok ? undefined : agents.error}
+        />
+      </section>
+
       <section>
         <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Call credits</h2>
         <p className="mt-1 mb-4 text-sm text-muted">

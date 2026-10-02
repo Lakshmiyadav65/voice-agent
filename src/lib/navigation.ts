@@ -53,6 +53,7 @@ export const trainerNav: NavGroup[] = [
   {
     label: "Clients",
     items: [
+      { label: "Add clients", href: "/admin" },
       { label: "Businesses", href: "/trainer/businesses" },
       { label: "AI Employees", href: "/trainer/ai-employees" },
       { label: "Business Data", href: "/trainer/business-data" },

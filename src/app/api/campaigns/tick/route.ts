@@ -1,8 +1,9 @@
 import { timingSafeEqual } from "crypto";
 
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 import { runCampaignTick } from "@/lib/campaigns/engine";
+import { syncPendingDograhCalls } from "@/lib/dograh/results";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveWebhookUrl } from "@/lib/voice/webhook-url";
 
@@ -24,5 +25,10 @@ export async function GET(request: Request) {
   if (!supabase) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
   const results = await runCampaignTick(supabase, { webhookUrl: resolveWebhookUrl(request) });
-  return NextResponse.json({ ran: results.length, results });
+
+  // Same per-minute schedule picks up any Dograh call whose result webhook went missing.
+  const followUps = await syncPendingDograhCalls(supabase, { limit: 10 });
+  followUps.forEach((followUp) => after(followUp));
+
+  return NextResponse.json({ ran: results.length, results, resultsPulled: followUps.length });
 }

@@ -20,19 +20,57 @@ export function KnowledgeExplorer({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [docChunks, setDocChunks] = useState<any[]>([]);
   const [loadingChunks, setLoadingChunks] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const [draftText, setDraftText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<{ tone: "good" | "bad"; text: string } | null>(null);
+
+  function loadChunks(docId: string) {
+    setLoadingChunks(true);
+    fetch(`/api/rag/chunks?documentId=${docId}`)
+      .then((r) => r.json())
+      .then((data) => setDocChunks(data.chunks || []))
+      .catch(() => setDocChunks([]))
+      .finally(() => setLoadingChunks(false));
+  }
+
+  function startEditing(doc: KnowledgeDocument) {
+    setDraftName(doc.name);
+    setDraftText(doc.raw_text);
+    setSaveMessage(null);
+    setEditing(true);
+  }
+
+  async function saveEdit() {
+    if (!selectedDoc) return;
+    setSaving(true);
+    setSaveMessage(null);
+    try {
+      const res = await fetch("/api/rag/documents", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: selectedDoc.id, name: draftName, text: draftText }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Could not save the change.");
+      setSelectedDoc(data.document);
+      setEditing(false);
+      setSaveMessage({ tone: "good", text: "Saved. Your agent uses the new version from its next call." });
+      loadChunks(selectedDoc.id);
+      onRefresh();
+    } catch (err) {
+      setSaveMessage({ tone: "bad", text: (err as Error).message });
+    } finally {
+      setSaving(false);
+    }
+  }
 
   function handleSelectDoc(doc: KnowledgeDocument) {
     setSelectedDoc(doc);
-    setLoadingChunks(true);
-    fetch(`/api/rag/chunks?documentId=${doc.id}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setDocChunks(data.chunks || []);
-      })
-      .catch(() => {
-        setDocChunks([]);
-      })
-      .finally(() => setLoadingChunks(false));
+    setEditing(false);
+    setSaveMessage(null);
+    loadChunks(doc.id);
   }
 
   async function handleDelete(docId: string, e: React.MouseEvent) {
@@ -216,12 +254,46 @@ export function KnowledgeExplorer({
               </div>
 
               <div>
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted">
-                  Full Raw Text ({selectedDoc.raw_text.length} chars)
-                </span>
-                <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-border bg-background p-4 text-xs font-mono text-ink whitespace-pre-wrap leading-relaxed">
-                  {selectedDoc.raw_text}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+                    {editing ? "Edit this item" : `Full Raw Text (${selectedDoc.raw_text.length} chars)`}
+                  </span>
+                  {!editing ? (
+                    <button
+                      type="button"
+                      onClick={() => startEditing(selectedDoc)}
+                      className="rounded-lg border border-border px-3 py-1 text-xs font-semibold text-ink hover:border-accent"
+                    >
+                      Edit
+                    </button>
+                  ) : null}
                 </div>
+                {editing ? (
+                  <div className="mt-2 space-y-2">
+                    <input
+                      value={draftName}
+                      onChange={(e) => setDraftName(e.target.value)}
+                      aria-label="Title"
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-ink outline-hidden focus:border-accent"
+                    />
+                    <textarea
+                      value={draftText}
+                      onChange={(e) => setDraftText(e.target.value)}
+                      rows={12}
+                      aria-label="Text"
+                      className="w-full rounded-xl border border-border bg-background p-3 text-sm text-ink outline-hidden focus:border-accent"
+                    />
+                  </div>
+                ) : (
+                  <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-border bg-background p-4 text-xs font-mono text-ink whitespace-pre-wrap leading-relaxed">
+                    {selectedDoc.raw_text}
+                  </div>
+                )}
+                {saveMessage ? (
+                  <p className={`mt-2 text-xs ${saveMessage.tone === "good" ? "text-accent" : "text-warn"}`}>
+                    {saveMessage.text}
+                  </p>
+                ) : null}
               </div>
 
               <div>
@@ -245,14 +317,35 @@ export function KnowledgeExplorer({
               </div>
             </div>
 
-            <div className="border-t border-border p-4 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setSelectedDoc(null)}
-                className="rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent/90"
-              >
-                Close
-              </button>
+            <div className="border-t border-border p-4 flex justify-end gap-2">
+              {editing ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setEditing(false)}
+                    disabled={saving}
+                    className="rounded-lg border border-border px-4 py-2 text-xs font-semibold text-ink"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveEdit}
+                    disabled={saving || !draftName.trim() || !draftText.trim()}
+                    className="rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent/90 disabled:opacity-50"
+                  >
+                    {saving ? "Saving…" : "Save"}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setSelectedDoc(null)}
+                  className="rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent/90"
+                >
+                  Close
+                </button>
+              )}
             </div>
           </div>
         </div>

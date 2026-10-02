@@ -1,3 +1,5 @@
+import { toDograhContext } from "@/lib/dograh/agent-settings";
+import { triggerDograhCall } from "@/lib/dograh/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { triggerLeadCall } from "@/lib/sarvam/client";
 import { toSarvamOverrides, toSarvamVariables } from "@/lib/sarvam/agent-settings";
@@ -13,6 +15,13 @@ import { captureBriefing, sanitizeCaptureFields } from "@/lib/voice/capture-fiel
 import { localizeGreeting } from "@/lib/voice/localize-greeting";
 
 const KNOWLEDGE_CHAR_LIMIT = 7500;
+
+export type VoiceProvider = "sarvam" | "dograh";
+
+/** The runtime that places calls. Sarvam stays the default until VOICE_PROVIDER names another. */
+export function activeVoiceProvider(): VoiceProvider {
+  return process.env.VOICE_PROVIDER?.trim().toLowerCase() === "dograh" ? "dograh" : "sarvam";
+}
 
 export type DispatchLeadCallOptions = {
   aiEmployeeId?: string | null;
@@ -32,6 +41,8 @@ export type DispatchLeadCallResult =
   | { success: false; error: string };
 
 export type ResolvedContext = {
+  /** The client's own Dograh agent, when staff linked one. */
+  dograhWorkflowId: number | null;
   businessName: string;
   businessType: string;
   employeeName: string;
@@ -46,6 +57,7 @@ export type ResolvedContext = {
  */
 export async function resolveEmployeeContext(aiEmployeeId?: string | null): Promise<ResolvedContext> {
   const context: ResolvedContext = {
+    dograhWorkflowId: null,
     businessName: "Our Business",
     businessType: "Consumer & Commercial Services",
     employeeName: "Voice Agent",
@@ -68,6 +80,8 @@ export async function resolveEmployeeContext(aiEmployeeId?: string | null): Prom
   if (!employee) return context;
 
   context.employeeName = employee.name;
+  // Absent until the phase 13 migration is applied; calls then use the shared agent.
+  context.dograhWorkflowId = employee.dograh_workflow_id ?? null;
   context.captureBriefing = captureBriefing(sanitizeCaptureFields(employee.capture_fields));
   context.settings = sanitizeAgentSettings(employee.agent_settings);
 
@@ -184,19 +198,48 @@ export async function dispatchLeadCall(
     options.initialBotMessage
   );
   const openingMessage = brief.greeting;
-  const overrides = toSarvamOverrides(context.settings, openingMessage);
 
-  const agentVariables: Record<string, any> = {
-    ...toSarvamVariables(brief, context.settings),
-    ...(options.agentVariables || {}),
+  const result =
+    activeVoiceProvider() === "dograh"
+      ? await triggerDograhCall({
+          workflowId: context.dograhWorkflowId,
+          phoneNumber: options.phoneNumber,
+          initialContext: {
+            ...toDograhContext(brief, context.settings, { leadId: options.leadId }),
+            ...(options.agentVariables || {}),
+          },
+        })
+      : await placeSarvamCall(options, context, brief, customerName);
+
+  if (!result.success) {
+    return { success: false, error: result.error || "Failed to trigger voice call" };
+  }
+
+  return {
+    success: true,
+    attemptId: result.attemptId,
+    businessName: context.businessName,
+    openingMessage,
   };
+}
 
-  const result = await triggerLeadCall({
+async function placeSarvamCall(
+  options: DispatchLeadCallOptions,
+  context: ResolvedContext,
+  brief: CallBrief,
+  customerName: string
+) {
+  const overrides = toSarvamOverrides(context.settings, brief.greeting);
+
+  return triggerLeadCall({
     customerName,
     phoneNumber: options.phoneNumber,
     reason: options.reason,
-    agentVariables,
-    initialBotMessage: overrides.initial_bot_message ?? openingMessage,
+    agentVariables: {
+      ...toSarvamVariables(brief, context.settings),
+      ...(options.agentVariables || {}),
+    },
+    initialBotMessage: overrides.initial_bot_message ?? brief.greeting,
     initialStateName: options.initialStateName,
     initialLanguage: overrides.initial_language_name,
     webhookUrl: options.webhookUrl,
@@ -209,15 +252,4 @@ export async function dispatchLeadCall(
         : {}),
     },
   });
-
-  if (!result.success) {
-    return { success: false, error: result.error || "Failed to trigger voice call" };
-  }
-
-  return {
-    success: true,
-    attemptId: result.attemptId,
-    businessName: context.businessName,
-    openingMessage,
-  };
 }

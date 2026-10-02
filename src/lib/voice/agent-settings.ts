@@ -270,13 +270,17 @@ function sanitizeTools(value: unknown): AgentTool[] {
  * language would otherwise ignore the allowed set and the switch toggle, so
  * every call and every simulation carries these words.
  */
+// Voices read native script best; a test call came back as romanised Telugu prefixed "Telugu:".
+const SCRIPT_RULE =
+  " Write every reply exactly as it should be spoken, in that language's own script (Telugu in Telugu script, Hindi in Devanagari), and never label a reply with a language name.";
+
 export function languageRules(settings: AgentSettings): string {
   const start = settings.startingLanguage;
   const others = settings.allowedLanguages.filter((l) => l !== start);
   if (settings.switchLanguageDuringCall && others.length) {
-    return `Open the call in ${start} and keep speaking ${start}. If the caller speaks ${others.join(" or ")}, switch to that language. Never reply in any other language; if the caller uses one, continue in ${start}.`;
+    return `Open the call in ${start} and keep speaking ${start}. If the caller speaks ${others.join(" or ")}, switch to that language. Never reply in any other language; if the caller uses one, continue in ${start}.${SCRIPT_RULE}`;
   }
-  return `Speak only ${start} for the whole call, from the first word to the last, even if the caller uses another language.`;
+  return `Speak only ${start} for the whole call, from the first word to the last, even if the caller uses another language.${SCRIPT_RULE}`;
 }
 
 /** The instructions the agent actually follows: the owner's own, or the standard ones. */

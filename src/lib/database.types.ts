@@ -52,6 +52,10 @@ export type AiEmployee = {
   // Provider-neutral; read through sanitizeAgentSettings, which fills defaults.
   agent_settings: Json;
   agent_tests: Json;
+  // The Dograh agent (workflow id) that places this employee's calls; null uses the shared default.
+  dograh_workflow_id: number | null;
+  // The Dograh knowledge document our knowledge base is copied into.
+  dograh_knowledge_uuid: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -289,6 +293,8 @@ export type Database = {
           capture_fields?: CaptureField[];
           agent_settings?: Json;
           agent_tests?: Json;
+          dograh_workflow_id?: number | null;
+          dograh_knowledge_uuid?: string | null;
           created_at?: string;
           updated_at?: string;
         };

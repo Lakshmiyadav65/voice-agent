@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { loadAccessibleEmployee } from "@/lib/auth/access";
 import { getSessionContext } from "@/lib/auth/session";
+import { syncBusinessKnowledge } from "@/lib/dograh/knowledge";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { RecursiveCharacterTextSplitter } from "@/lib/rag/text-splitter";
-import { SupabaseVectorStore } from "@/lib/rag/vector-store";
+import { indexDocument } from "@/lib/rag/index-document";
 import { generateDocumentSummary } from "@/lib/rag/qa-engine";
 
 export async function POST(request: Request) {
@@ -109,26 +109,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // 5. Intelligent Chunking with RecursiveCharacterTextSplitter (1000 chars keeps tables & specs intact)
-    const splitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 1000,
-      chunkOverlap: 120,
-    });
-
-    const chunkDocuments = await splitter.createDocuments([cleanText], [
-      {
-        documentId: doc.id,
-        businessId,
-        aiEmployeeId,
-        sourceType: "document_upload",
-        sourceName: doc.name,
-        fileName: file.name,
-      },
-    ]);
-
-    // 6. Vector Embedding and Insertion into Supabase knowledge_chunks
-    const vectorStore = new SupabaseVectorStore(supabase as any);
-    const chunkIds = await vectorStore.addDocuments(chunkDocuments, businessId, aiEmployeeId, doc.id);
+    // 5. Chunk, embed and store in knowledge_chunks
+    const chunkIds = await indexDocument(supabase, doc, cleanText, { fileName: file.name });
 
     // Update document record with confirmed chunk count in metadata
     await supabase
@@ -141,7 +123,8 @@ export async function POST(request: Request) {
       })
       .eq("id", doc.id);
 
-    console.log(`Document "${doc.name}" processed: ${chunkDocuments.length} chunks generated, ${chunkIds.length} chunks stored in DB.`);
+    console.log(`Document "${doc.name}" processed: ${chunkIds.length} chunks stored.`);
+    after(() => syncBusinessKnowledge(supabase, businessId));
 
     return NextResponse.json({
       success: true,

@@ -14,6 +14,14 @@ const demoAccount = {
   password: "OwnerPass123",
 };
 
+/** The page the user was sent here from, if it is one of ours they may open; never an outside address. */
+function returnPath(role: PlatformRole): string | null {
+  const next = new URLSearchParams(window.location.search).get("next");
+  if (!next || !next.startsWith("/") || next.startsWith("//")) return null;
+  const allowed = redirectPathForRole(role) === "/trainer" ? ["/trainer", "/admin"] : ["/dashboard"];
+  return allowed.some((prefix) => next === prefix || next.startsWith(`${prefix}/`)) ? next : null;
+}
+
 export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -70,7 +78,7 @@ export function LoginForm() {
       return;
     }
 
-    router.push(redirectPathForRole(platformRole));
+    router.push(returnPath(platformRole) ?? redirectPathForRole(platformRole));
     router.refresh();
   }
 

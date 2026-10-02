@@ -1,3 +1,5 @@
+import { after } from "next/server";
+
 import { CallFilters } from "@/components/owner/CallFilters";
 import { LeadCallCard } from "@/components/owner/LeadCallCard";
 import { AppSectionPage } from "@/components/shell/AppSectionPage";
@@ -6,9 +8,11 @@ import { requireDashboardAccess } from "@/lib/auth/session";
 import { summarizeAttempts } from "@/lib/data/call-analytics";
 import { getBusinessLeads, latestAttempt, type LeadWithCalls } from "@/lib/data/leads";
 import { getOwnerWorkspace } from "@/lib/data/workspace";
+import { syncPendingDograhCalls } from "@/lib/dograh/results";
 import { formatSeconds } from "@/lib/format";
 import { campaignOf, sourceLabel } from "@/lib/leads/attribution";
 import { ownerPages } from "@/lib/pages";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const OUTCOME_LABELS: Record<string, string> = {
   interested: "Interested",
@@ -46,6 +50,17 @@ export default async function CallsPage({ searchParams }: PageProps) {
 
   const session = await requireDashboardAccess();
   const workspace = await getOwnerWorkspace(session.userId);
+
+  // Dograh results are pulled here as well as pushed by its webhook, so calls
+  // still show up when the webhook could not reach this app.
+  const admin = createAdminClient();
+  if (admin && workspace.primaryBusiness) {
+    const followUps = await syncPendingDograhCalls(admin, {
+      businessId: workspace.primaryBusiness.id,
+      limit: 5,
+    });
+    followUps.forEach((followUp) => after(followUp));
+  }
   const allLeads: LeadWithCalls[] = workspace.primaryBusiness
     ? await getBusinessLeads(workspace.primaryBusiness.id, ANALYTICS_LEAD_LIMIT)
     : [];

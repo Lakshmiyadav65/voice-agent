@@ -69,6 +69,7 @@ const SOURCE_LABELS: Record<string, string> = {
   hosted_form: "Lead form (direct)",
   ad_form: "Website form",
   dev_test_page: "Test page",
+  browser_test: "Browser test call",
   demo_seed: "Demo data",
 };
 

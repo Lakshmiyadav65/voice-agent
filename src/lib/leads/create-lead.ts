@@ -151,9 +151,12 @@ export async function placeCallForLead(
   });
 
   if (!result.success || !result.attemptId) {
+    const error = result.success ? "No call id returned" : result.error;
+    // Callers don't surface this (the hosted form only says whether a call was placed), so log it.
+    console.error("[Lead call] Could not call lead", target.leadId, error);
     // The lead is already saved, so the business can still follow up by hand.
     await supabase.from("leads").update({ status: "unreachable" }).eq("id", target.leadId);
-    return { ok: false, error: result.success ? "No call id returned" : result.error };
+    return { ok: false, error };
   }
 
   await supabase.from("call_attempts").insert({

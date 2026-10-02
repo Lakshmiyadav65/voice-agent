@@ -1,4 +1,5 @@
-import { BUILT_IN_VARIABLES, fillTemplate, type AgentSettings } from "@/lib/voice/agent-settings";
+import { BUILT_IN_VARIABLES, type AgentSettings } from "@/lib/voice/agent-settings";
+import { composeBriefing } from "@/lib/voice/briefing";
 import type { CallBrief } from "@/lib/voice/dispatch-lead-call";
 import type { SarvamAppOverrides } from "./types";
 
@@ -40,20 +41,6 @@ export function toSarvamOverrides(
 export function toSarvamVariables(brief: CallBrief, settings: AgentSettings): Record<string, string> {
   const vars: Record<string, string> = {};
   for (const { key } of BUILT_IN_VARIABLES) vars[key] = brief.values[key] ?? "";
-
-  const sections: string[] = [];
-  if (settings.instructions.trim()) {
-    // Filled again without the knowledge, so a {{business_description}} in the
-    // owner's text does not paste the knowledge in twice.
-    const instructions = fillTemplate(settings.instructions, {
-      ...brief.values,
-      business_description: "the business knowledge below",
-    });
-    sections.push("INSTRUCTIONS FROM THE BUSINESS (follow these over any general guidance):", instructions);
-  }
-  sections.push("LANGUAGE (follow this exactly, over any other guidance):", brief.languageRules);
-  sections.push("BUSINESS KNOWLEDGE:", brief.knowledge);
-  vars.business_description = sections.join("\n\n");
-
+  vars.business_description = composeBriefing(brief, settings.instructions);
   return vars;
 }

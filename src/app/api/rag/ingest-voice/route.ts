@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { loadAccessibleEmployee } from "@/lib/auth/access";
 import { getSessionContext } from "@/lib/auth/session";
+import { syncBusinessKnowledge } from "@/lib/dograh/knowledge";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { RecursiveCharacterTextSplitter } from "@/lib/rag/text-splitter";
-import { SupabaseVectorStore } from "@/lib/rag/vector-store";
+import { indexDocument } from "@/lib/rag/index-document";
 import { generateDocumentSummary } from "@/lib/rag/qa-engine";
 
 export async function POST(request: Request) {
@@ -85,27 +85,11 @@ export async function POST(request: Request) {
 
     const doc = dbDoc;
 
-    // 2. Intelligent Recursive Splitting
-    const splitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 450,
-      chunkOverlap: 50,
-    });
+    // 2. Chunk, embed and store in knowledge_chunks
+    const chunkIds = await indexDocument(supabase, doc, trimmedText);
 
-    const chunkDocuments = await splitter.createDocuments([trimmedText], [
-      {
-        documentId: doc.id,
-        businessId,
-        aiEmployeeId,
-        sourceType: "voice_transcript",
-        sourceName: doc.name,
-      },
-    ]);
-
-    // 3. Supabase Vector Store
-    const vectorStore = new SupabaseVectorStore(supabase as any);
-    const chunkIds = await vectorStore.addDocuments(chunkDocuments, businessId, aiEmployeeId, doc.id);
-
-    console.log(`Voice transcript indexed: ${chunkDocuments.length} chunks generated, ${chunkIds.length} stored in DB.`);
+    console.log(`Voice transcript indexed: ${chunkIds.length} chunks stored.`);
+    after(() => syncBusinessKnowledge(supabase, businessId));
 
     return NextResponse.json({
       success: true,

@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-type Agent = { id: number; name: string };
 type Created = { loginUrl: string; email: string; password: string };
 
 // No 0/O or 1/l/I, so a password read out over the phone survives.
@@ -25,25 +24,19 @@ function shareText({ loginUrl, email, password }: Created, businessName: string)
 }
 
 /**
- * Staff create a client's login, business and AI employee in one go, then copy
- * the login details to send to the client (WhatsApp, email...).
+ * Staff create a client's login, business and AI employee in one go, linked to
+ * the agent they trained in Sarvam, then copy the login details to send to the
+ * client (WhatsApp, email...).
  */
-export function AddClientForm({
-  agents,
-  agentsError,
-  startOpen = false,
-}: {
-  agents: Agent[];
-  agentsError?: string;
-  startOpen?: boolean;
-}) {
+export function AddClientForm({ startOpen = false }: { startOpen?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(startOpen);
   const [businessName, setBusinessName] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [workflowId, setWorkflowId] = useState(agents.length === 1 ? String(agents[0].id) : "");
+  const [agentName, setAgentName] = useState("");
+  const [sarvamAgentId, setSarvamAgentId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [created, setCreated] = useState<Created | null>(null);
@@ -54,7 +47,8 @@ export function AddClientForm({
     setOwnerName("");
     setEmail("");
     setPassword(generatePassword());
-    setWorkflowId(agents.length === 1 ? String(agents[0].id) : "");
+    setAgentName("");
+    setSarvamAgentId("");
     setError("");
     setCreated(null);
     setCopied(false);
@@ -77,7 +71,8 @@ export function AddClientForm({
           ownerName,
           email,
           password: finalPassword,
-          dograhWorkflowId: workflowId || null,
+          agentName,
+          sarvamAgentId: sarvamAgentId.trim() || null,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -172,17 +167,24 @@ export function AddClientForm({
             </button>
           </span>
         </label>
-        <label className={`${label} sm:col-span-2`}>
-          Dograh agent
-          <select value={workflowId} onChange={(e) => setWorkflowId(e.target.value)} className={`${input} mt-1`}>
-            <option value="">Shared agent (instructions set on this platform)</option>
-            {agents.map((agent) => (
-              <option key={agent.id} value={agent.id}>
-                {agent.name} (#{agent.id})
-              </option>
-            ))}
-          </select>
-          {agentsError ? <span className="mt-1 block text-xs text-warn">Could not load Dograh agents: {agentsError}</span> : null}
+        <label className={label}>
+          Agent name
+          <input
+            value={agentName}
+            placeholder="e.g. Priya"
+            onChange={(e) => setAgentName(e.target.value)}
+            className={`${input} mt-1`}
+          />
+        </label>
+        <label className={label}>
+          Sarvam agent ID
+          <input
+            value={sarvamAgentId}
+            placeholder="Leave blank for the shared agent"
+            onChange={(e) => setSarvamAgentId(e.target.value)}
+            className={`${input} mt-1 font-mono`}
+          />
+          <span className="mt-1 block text-xs text-muted">From the agent you trained for this client in Sarvam&apos;s console.</span>
         </label>
       </div>
       {error ? <p className="text-sm text-warn">{error}</p> : null}

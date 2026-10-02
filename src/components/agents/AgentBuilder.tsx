@@ -18,7 +18,7 @@ import {
 } from "./icons";
 import { InstructionsSection } from "./InstructionsSection";
 import { SettingsSection } from "./SettingsSection";
-import { GeniePanel, TestAgentPanel } from "./SidePanels";
+import { GeniePanel, TestChatPanel } from "./SidePanels";
 import { TestsSection } from "./TestsSection";
 import { ToolsSection } from "./ToolsSection";
 import { VariablesSection } from "./VariablesSection";
@@ -300,7 +300,7 @@ export function AgentBuilder({ agentId, initialName, initialSettings, initialTes
                   }}
                 />
               ) : (
-                <TestAgentPanel agentId={agentId} settings={settings} unsaved={agentDirty} />
+                <TestChatPanel agentId={agentId} settings={settings} />
               )}
             </div>
           </aside>

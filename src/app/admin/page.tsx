@@ -3,7 +3,6 @@ import Link from "next/link";
 import { AppSectionPage } from "@/components/shell/AppSectionPage";
 import { AddClientForm } from "@/components/trainer/AddClientForm";
 import { requireTrainerAccess } from "@/lib/auth/session";
-import { listDograhAgents } from "@/lib/dograh/client";
 import type { PageMeta } from "@/lib/pages";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -24,7 +23,7 @@ async function loadClients(): Promise<ClientRow[]> {
     supabase.from("businesses").select("id, name, created_at").order("created_at", { ascending: false }),
     supabase.from("business_members").select("business_id, user_id").eq("role", "owner"),
     supabase.from("profiles").select("id, email"),
-    // "*" rather than naming dograh_workflow_id, so the page still loads before the phase 13 migration.
+    // "*" rather than naming sarvam_agent_id, so the page still loads before the phase 14 migration.
     supabase.from("ai_employees").select("*").order("created_at", { ascending: true }),
   ]);
 
@@ -34,8 +33,8 @@ async function loadClients(): Promise<ClientRow[]> {
     const owners = (members ?? []).filter((m) => m.business_id === b.id).map((m) => emailOf.get(m.user_id) ?? "—");
     const agent = !employee
       ? "No agent yet"
-      : employee.dograh_workflow_id
-        ? `${employee.name} (Dograh #${employee.dograh_workflow_id})`
+      : employee.sarvam_agent_id
+        ? `${employee.name} (Sarvam ${employee.sarvam_agent_id})`
         : `${employee.name} (shared agent)`;
     return { id: b.id, name: b.name, createdAt: b.created_at, owners, agent };
   });
@@ -43,15 +42,11 @@ async function loadClients(): Promise<ClientRow[]> {
 
 export default async function AdminPage() {
   await requireTrainerAccess();
-  const [agents, clients] = await Promise.all([listDograhAgents(), loadClients()]);
+  const clients = await loadClients();
 
   return (
     <AppSectionPage meta={meta} showEmpty={false}>
-      <AddClientForm
-        startOpen
-        agents={agents.ok ? agents.data : []}
-        agentsError={agents.ok ? undefined : agents.error}
-      />
+      <AddClientForm startOpen />
 
       <section className="mt-10">
         <div className="mb-3 flex items-baseline justify-between gap-3">

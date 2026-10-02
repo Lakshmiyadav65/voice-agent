@@ -1,5 +1,3 @@
-import { toDograhContext } from "@/lib/dograh/agent-settings";
-import { triggerDograhCall } from "@/lib/dograh/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { triggerLeadCall } from "@/lib/sarvam/client";
 import { toSarvamOverrides, toSarvamVariables } from "@/lib/sarvam/agent-settings";
@@ -15,13 +13,6 @@ import { captureBriefing, sanitizeCaptureFields } from "@/lib/voice/capture-fiel
 import { localizeGreeting } from "@/lib/voice/localize-greeting";
 
 const KNOWLEDGE_CHAR_LIMIT = 7500;
-
-export type VoiceProvider = "sarvam" | "dograh";
-
-/** The runtime that places calls. Sarvam stays the default until VOICE_PROVIDER names another. */
-export function activeVoiceProvider(): VoiceProvider {
-  return process.env.VOICE_PROVIDER?.trim().toLowerCase() === "dograh" ? "dograh" : "sarvam";
-}
 
 export type DispatchLeadCallOptions = {
   aiEmployeeId?: string | null;
@@ -41,8 +32,8 @@ export type DispatchLeadCallResult =
   | { success: false; error: string };
 
 export type ResolvedContext = {
-  /** The client's own Dograh agent, when staff linked one. */
-  dograhWorkflowId: number | null;
+  /** The client's own Sarvam agent, trained by staff in Sarvam's console; null uses SARVAM_AGENT_ID. */
+  sarvamAgentId: string | null;
   businessName: string;
   businessType: string;
   employeeName: string;
@@ -57,7 +48,7 @@ export type ResolvedContext = {
  */
 export async function resolveEmployeeContext(aiEmployeeId?: string | null): Promise<ResolvedContext> {
   const context: ResolvedContext = {
-    dograhWorkflowId: null,
+    sarvamAgentId: null,
     businessName: "Our Business",
     businessType: "Consumer & Commercial Services",
     employeeName: "Voice Agent",
@@ -80,8 +71,8 @@ export async function resolveEmployeeContext(aiEmployeeId?: string | null): Prom
   if (!employee) return context;
 
   context.employeeName = employee.name;
-  // Absent until the phase 13 migration is applied; calls then use the shared agent.
-  context.dograhWorkflowId = employee.dograh_workflow_id ?? null;
+  // Absent until the phase 14 migration is applied; calls then use the shared agent.
+  context.sarvamAgentId = employee.sarvam_agent_id ?? null;
   context.captureBriefing = captureBriefing(sanitizeCaptureFields(employee.capture_fields));
   context.settings = sanitizeAgentSettings(employee.agent_settings);
 
@@ -199,17 +190,7 @@ export async function dispatchLeadCall(
   );
   const openingMessage = brief.greeting;
 
-  const result =
-    activeVoiceProvider() === "dograh"
-      ? await triggerDograhCall({
-          workflowId: context.dograhWorkflowId,
-          phoneNumber: options.phoneNumber,
-          initialContext: {
-            ...toDograhContext(brief, context.settings, { leadId: options.leadId }),
-            ...(options.agentVariables || {}),
-          },
-        })
-      : await placeSarvamCall(options, context, brief, customerName);
+  const result = await placeSarvamCall(options, context, brief, customerName);
 
   if (!result.success) {
     return { success: false, error: result.error || "Failed to trigger voice call" };
@@ -232,6 +213,7 @@ async function placeSarvamCall(
   const overrides = toSarvamOverrides(context.settings, brief.greeting);
 
   return triggerLeadCall({
+    agentId: context.sarvamAgentId ?? undefined,
     customerName,
     phoneNumber: options.phoneNumber,
     reason: options.reason,

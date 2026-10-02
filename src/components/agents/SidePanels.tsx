@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 
 import type { AgentSettings } from "@/lib/voice/agent-settings";
 import type { TranscriptLine } from "@/lib/voice/agent-tests";
-import { BrowserCallPanel } from "./BrowserCallPanel";
 import { AgentGlyph, ArrowUpIcon } from "./icons";
 
 const SUGGESTIONS = [
@@ -161,46 +160,6 @@ export function GeniePanel({
         <div ref={end} />
       </div>
       <Composer placeholder="What's on your mind?" disabled={busy} onSend={ask} />
-    </div>
-  );
-}
-
-/** "Test agent": a text chat with the draft, or a voice call with the saved agent. */
-export function TestAgentPanel({
-  agentId,
-  settings,
-  unsaved,
-}: {
-  agentId: string;
-  settings: AgentSettings;
-  unsaved: boolean;
-}) {
-  const [mode, setMode] = useState<"text" | "voice">("text");
-  return (
-    <div className="flex h-full flex-col">
-      <div role="tablist" aria-label="How to test" className="mb-3 flex gap-1 rounded-full border border-border p-1">
-        {(["text", "voice"] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            role="tab"
-            aria-selected={mode === m}
-            onClick={() => setMode(m)}
-            className={`flex-1 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-              mode === m ? "bg-ink text-surface" : "text-muted hover:text-ink"
-            }`}
-          >
-            {m === "text" ? "Text chat" : "Voice call"}
-          </button>
-        ))}
-      </div>
-      <div className="min-h-0 flex-1">
-        {mode === "text" ? (
-          <TestChatPanel agentId={agentId} settings={settings} />
-        ) : (
-          <BrowserCallPanel agentId={agentId} unsaved={unsaved} />
-        )}
-      </div>
     </div>
   );
 }

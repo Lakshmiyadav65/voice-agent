@@ -1,7 +1,6 @@
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { canAccessBusiness, getAccessScope, loadAccessibleEmployee } from "@/lib/auth/access";
 import { getSessionContext } from "@/lib/auth/session";
-import { syncBusinessKnowledge } from "@/lib/dograh/knowledge";
 import { indexDocument } from "@/lib/rag/index-document";
 import { generateDocumentSummary } from "@/lib/rag/qa-engine";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -147,7 +146,6 @@ export async function DELETE(request: Request) {
     if (doc) {
       await supabase.from("knowledge_chunks").delete().eq("document_id", documentId);
       await supabase.from("knowledge_documents").delete().eq("id", documentId);
-      after(() => syncBusinessKnowledge(supabase, doc.business_id));
     }
 
     const { localRagStore } = await import("@/lib/rag/local-cache");
@@ -160,8 +158,8 @@ export async function DELETE(request: Request) {
 }
 
 /**
- * Owners correct a knowledge item in place: new text is re-chunked for search
- * and copied to their Dograh agent, so the next call already knows the change.
+ * Owners correct a knowledge item in place: new text is re-chunked for search,
+ * and the next call already carries the change.
  */
 export async function PATCH(request: Request) {
   const session = await getSessionContext();
@@ -207,6 +205,5 @@ export async function PATCH(request: Request) {
       .eq("id", doc.id);
   }
 
-  after(() => syncBusinessKnowledge(supabase, doc.business_id));
   return NextResponse.json({ document: updated });
 }

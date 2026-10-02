@@ -1,13 +1,13 @@
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 import { isPlatformStaff } from "@/lib/auth/roles";
 import { getSessionContext } from "@/lib/auth/session";
-import { listDograhAgents } from "@/lib/dograh/client";
-import { syncBusinessKnowledge } from "@/lib/dograh/knowledge";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const MIN_PASSWORD_LENGTH = 8;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// As shown in Sarvam's console, e.g. "Priya-Sales-12ab3456-7c8d": letters, digits and dashes.
+const SARVAM_AGENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{2,99}$/;
 
 function loginUrl(request: Request): string {
   const base = process.env.APP_PUBLIC_URL?.trim() || new URL(request.url).origin;
@@ -16,8 +16,8 @@ function loginUrl(request: Request): string {
 
 /**
  * Onboards a client in one step: the owner's login (already confirmed, so it
- * works at once), their business, its AI employee, and the Dograh agent that
- * calls for it. Staff then share the returned login details with the client.
+ * works at once), their business, and its AI employee, linked to the Sarvam
+ * agent staff trained for it. Staff then share the returned login details.
  */
 export async function POST(request: Request) {
   const session = await getSessionContext();
@@ -33,7 +33,8 @@ export async function POST(request: Request) {
   const ownerName = String(body?.ownerName ?? "").trim();
   const email = String(body?.email ?? "").trim().toLowerCase();
   const password = String(body?.password ?? "");
-  const workflowId = body?.dograhWorkflowId ? Number(body.dograhWorkflowId) : null;
+  const agentName = String(body?.agentName ?? "").trim() || "AI Employee";
+  const sarvamAgentId = String(body?.sarvamAgentId ?? "").trim() || null;
 
   if (!businessName || !ownerName) {
     return NextResponse.json({ error: "Enter the business name and the owner's name." }, { status: 400 });
@@ -42,24 +43,23 @@ export async function POST(request: Request) {
   if (password.length < MIN_PASSWORD_LENGTH) {
     return NextResponse.json({ error: `The password needs at least ${MIN_PASSWORD_LENGTH} characters.` }, { status: 400 });
   }
+  if (sarvamAgentId && !SARVAM_AGENT_ID_PATTERN.test(sarvamAgentId)) {
+    return NextResponse.json(
+      { error: "That does not look like a Sarvam agent ID. Copy it from the agent in Sarvam's console." },
+      { status: 400 }
+    );
+  }
 
-  // The employee takes the Dograh agent's name, so both consoles show the same agent.
-  let agentName = "AI Employee";
-  if (workflowId) {
-    const agents = await listDograhAgents();
-    const agent = agents.ok ? agents.data.find((a) => a.id === workflowId) : undefined;
-    if (!agent) return NextResponse.json({ error: "That Dograh agent was not found." }, { status: 400 });
-    agentName = agent.name;
-
-    // Knowledge is attached to the linked agent, so a shared one would read out another client's details.
+  // An agent is trained for one client, so another client's calls must never run it.
+  if (sarvamAgentId) {
     const { data: linked } = await supabase
       .from("ai_employees")
       .select("id")
-      .eq("dograh_workflow_id", workflowId)
+      .eq("sarvam_agent_id", sarvamAgentId)
       .limit(1);
     if (linked?.length) {
       return NextResponse.json(
-        { error: "That Dograh agent already belongs to another client. Each client needs their own agent." },
+        { error: "That Sarvam agent already belongs to another client. Each client needs their own agent." },
         { status: 409 }
       );
     }
@@ -102,20 +102,19 @@ export async function POST(request: Request) {
   const { error: employeeError } = await supabase.from("ai_employees").insert({
     business_id: business.id,
     name: agentName,
-    status: workflowId ? "live" : "draft",
-    ...(workflowId ? { dograh_workflow_id: workflowId } : {}),
+    status: sarvamAgentId ? "live" : "draft",
+    ...(sarvamAgentId ? { sarvam_agent_id: sarvamAgentId } : {}),
   });
   if (employeeError) {
     return fail(
-      /dograh_workflow_id/.test(employeeError.message)
-        ? "Apply the phase 13 database migration first (supabase db push), then try again."
+      /sarvam_agent_id/.test(employeeError.message)
+        ? employeeError.code === "23505"
+          ? "That Sarvam agent already belongs to another client. Each client needs their own agent."
+          : "Apply the phase 14 database migration first (supabase db push), then try again."
         : "Could not create the AI employee.",
       business.id
     );
   }
-
-  // Creates their knowledge document in Dograh and attaches it to the agent, ready for what they add later.
-  if (workflowId) after(() => syncBusinessKnowledge(supabase, business.id));
 
   return NextResponse.json({ businessId: business.id, loginUrl: loginUrl(request), email, password });
 }

@@ -1,7 +1,6 @@
 import type { CallAttempt, Lead } from "@/lib/database.types";
 import { secondsToFirstCall, type LeadWithCalls } from "@/lib/data/leads";
 import { formatRupees } from "@/lib/billing/credits";
-import { parseDograhAttemptId } from "@/lib/dograh/client";
 import { formatSeconds } from "@/lib/format";
 import { campaignOf, sourceLabel } from "@/lib/leads/attribution";
 import { formatCapturedValue, sanitizeCaptured } from "@/lib/voice/capture-fields";
@@ -108,16 +107,6 @@ export function LeadCallCard({ lead, attempt }: LeadCallCardProps) {
 
       {visitAt ? (
         <p className="mt-3 text-sm text-accent">Preferred visit: {visitAt}</p>
-      ) : null}
-
-      {attempt?.status === "connected" && parseDograhAttemptId(attempt.attempt_id) ? (
-        <audio
-          controls
-          preload="none"
-          src={`/api/voice/recording/${attempt.id}`}
-          className="mt-4 w-full"
-          aria-label={`Recording of the call with ${lead.name}`}
-        />
       ) : null}
 
       <p className="mt-4 text-xs text-muted">

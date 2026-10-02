@@ -1,7 +1,6 @@
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { loadAccessibleEmployee } from "@/lib/auth/access";
 import { getSessionContext } from "@/lib/auth/session";
-import { syncBusinessKnowledge } from "@/lib/dograh/knowledge";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { indexDocument } from "@/lib/rag/index-document";
 import { generateDocumentSummary } from "@/lib/rag/qa-engine";
@@ -124,7 +123,6 @@ export async function POST(request: Request) {
       .eq("id", doc.id);
 
     console.log(`Document "${doc.name}" processed: ${chunkIds.length} chunks stored.`);
-    after(() => syncBusinessKnowledge(supabase, businessId));
 
     return NextResponse.json({
       success: true,

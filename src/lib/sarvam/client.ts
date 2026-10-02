@@ -38,7 +38,10 @@ export async function triggerLeadCall(
   const orgId = process.env.SARVAM_ORG_ID;
   const workspaceId = process.env.SARVAM_WORKSPACE_ID;
   const agentId = options.agentId || process.env.SARVAM_AGENT_ID;
-  const agentVersion = options.agentVersion ?? Number(process.env.SARVAM_AGENT_VERSION || 1);
+  // A client's own agent runs whatever staff last committed in Sarvam's console, so retraining
+  // there needs no change here; the shared default stays pinned to SARVAM_AGENT_VERSION if set.
+  const agentVersion =
+    options.agentVersion ?? (options.agentId ? undefined : Number(process.env.SARVAM_AGENT_VERSION) || undefined);
   const connectionId = options.connectionId || process.env.SARVAM_CONNECTION_ID;
   const fromPhoneNumber = options.fromPhoneNumber || process.env.SARVAM_AGENT_PHONE_NUMBER;
 
@@ -74,7 +77,7 @@ export async function triggerLeadCall(
   const payload: SarvamInstantOutboundRequest = {
     app_config: {
       app_id: agentId,
-      app_version: agentVersion,
+      ...(agentVersion ? { app_version: agentVersion } : { version_filter: "latest_committed" as const }),
       app_type: "agent",
       connection_config: {
         connection_id: connectionId,

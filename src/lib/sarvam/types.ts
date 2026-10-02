@@ -30,7 +30,10 @@ export interface SarvamAppOverrides {
 
 export interface SarvamAppConfig {
   app_id: string;
-  app_version: number;
+  /** Required unless version_filter picks the version. */
+  app_version?: number;
+  /** Which version runs: "specific" (default, needs app_version) or the newest committed or saved one. */
+  version_filter?: "specific" | "latest_committed" | "latest";
   app_type?: "agent";
   connection_config: SarvamConnectionConfig;
   agent_variables?: Record<string, any> | null;

@@ -79,7 +79,9 @@ export class HuggingFaceSentenceEmbeddings extends Embeddings {
   }
 
   private async embedWithHfApi(texts: string[]): Promise<number[][]> {
-    const endpoint = `https://router.huggingface.co/hf-inference/models/${this.modelName}`;
+    // The bare model URL runs this model's default task, sentence similarity, and rejects a
+    // list of texts; the feature-extraction pipeline returns the 384-dim vectors.
+    const endpoint = `https://router.huggingface.co/hf-inference/models/${this.modelName}/pipeline/feature-extraction`;
     const response = await fetch(endpoint, {
       method: "POST",
       headers: {

@@ -41,7 +41,57 @@ export type ResolvedContext = {
   settings: AgentSettings;
   knowledge: string;
   captureBriefing: string;
+  /** How the knowledge base fits the per-call limit; null when there is none. */
+  knowledgeUsage: KnowledgeUsage | null;
 };
+
+export type KnowledgeItemUsage = {
+  id: string;
+  name: string;
+  chars: number;
+  // Whether a call carries this item whole, cut off partway, or not at all.
+  sent: "all" | "part" | "none";
+};
+
+export type KnowledgeUsage = {
+  limit: number;
+  // Characters a call carries (at most the limit) and what the whole knowledge base would need.
+  used: number;
+  total: number;
+  items: KnowledgeItemUsage[];
+};
+
+/**
+ * Joins the header and documents into the one block a call carries, cut at the
+ * limit, and records how far each document got, so the knowledge meter shows
+ * owners exactly what the agent hears.
+ */
+export function bundleKnowledge(
+  header: string[],
+  docs: { id: string; name: string; text: string }[],
+  limit = KNOWLEDGE_CHAR_LIMIT
+): { text: string; usage: KnowledgeUsage } {
+  const parts = [...header];
+  let length = header.join("\n\n").length;
+  const items: KnowledgeItemUsage[] = [];
+  docs.forEach((doc, index) => {
+    const part = `[Knowledge Item ${index + 1} - ${doc.name}]:\n${doc.text}`;
+    const start = length + 2;
+    length = start + part.length;
+    parts.push(part);
+    items.push({
+      id: doc.id,
+      name: doc.name,
+      chars: doc.text.length,
+      sent: length <= limit ? "all" : start < limit ? "part" : "none",
+    });
+  });
+  const full = parts.join("\n\n");
+  return {
+    text: full.slice(0, limit),
+    usage: { limit, used: Math.min(full.length, limit), total: full.length, items },
+  };
+}
 
 /**
  * Sarvam receives business facts as a single prose blob, so knowledge documents
@@ -56,6 +106,7 @@ export async function resolveEmployeeContext(aiEmployeeId?: string | null): Prom
     settings: DEFAULT_AGENT_SETTINGS,
     knowledge: "",
     captureBriefing: "",
+    knowledgeUsage: null,
   };
 
   if (!aiEmployeeId) return context;
@@ -84,9 +135,11 @@ export async function resolveEmployeeContext(aiEmployeeId?: string | null): Prom
   }
 
   const businessId = employee.business_id;
+  // Oldest first, so which item a full knowledge base cuts off is predictable: the newest.
   let docQuery = supabase
     .from("knowledge_documents")
-    .select("name, summary, raw_text, source_type, metadata");
+    .select("id, name, raw_text")
+    .order("created_at", { ascending: true });
 
   docQuery = businessId
     ? docQuery.or(`business_id.eq.${businessId},ai_employee_id.eq.${aiEmployeeId}`)
@@ -95,7 +148,7 @@ export async function resolveEmployeeContext(aiEmployeeId?: string | null): Prom
   const { data: docs } = await docQuery;
   if (!docs?.length) return context;
 
-  const sections: string[] = [
+  const header: string[] = [
     "BUSINESS OVERVIEW:",
     `Company Name: ${context.businessName}`,
     `Representative AI: ${context.employeeName}`,
@@ -103,15 +156,18 @@ export async function resolveEmployeeContext(aiEmployeeId?: string | null): Prom
     "\nVERIFIED BUSINESS FACTS, PRODUCTS & PRICING (FROM DATABASE):",
   ];
 
-  docs.forEach((doc, index) => {
-    // Seeded rupee amounts lost their symbol upstream and read as "n1,200" to the agent.
-    const text = doc.raw_text?.replace(/\bn(\d{1,3}(?:,\d{2,3})*(?:\.\d+)?)\b/g, "₹$1").trim();
-    if (text) {
-      sections.push(`[Knowledge Item ${index + 1} - ${doc.name}]:\n${text}`);
-    }
-  });
+  const items = docs
+    .map((doc) => ({
+      id: doc.id,
+      name: doc.name,
+      // Seeded rupee amounts lost their symbol upstream and read as "n1,200" to the agent.
+      text: doc.raw_text?.replace(/\bn(\d{1,3}(?:,\d{2,3})*(?:\.\d+)?)\b/g, "₹$1").trim() ?? "",
+    }))
+    .filter((doc) => doc.text);
 
-  context.knowledge = sections.join("\n\n").slice(0, KNOWLEDGE_CHAR_LIMIT);
+  const { text, usage } = bundleKnowledge(header, items);
+  context.knowledge = text;
+  context.knowledgeUsage = usage;
   return context;
 }
 

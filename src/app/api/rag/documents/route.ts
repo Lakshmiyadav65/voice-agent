@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { canAccessBusiness, getAccessScope, loadAccessibleEmployee } from "@/lib/auth/access";
 import { getSessionContext } from "@/lib/auth/session";
-import { indexDocument } from "@/lib/rag/index-document";
-import { generateDocumentSummary } from "@/lib/rag/qa-engine";
+import { replaceDocumentText } from "@/lib/rag/update-document";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const MAX_DOCUMENT_CHARS = 200_000;
@@ -186,24 +185,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Document not found" }, { status: 404 });
   }
 
-  const textChanged = text !== doc.raw_text;
-  const summary = textChanged ? await generateDocumentSummary(text, name) : doc.summary;
-  const { data: updated, error } = await supabase
-    .from("knowledge_documents")
-    .update({ name, raw_text: text, summary })
-    .eq("id", doc.id)
-    .select("*")
-    .single();
-  if (error || !updated) return NextResponse.json({ error: "Could not save the change." }, { status: 500 });
-
-  if (textChanged) {
-    await supabase.from("knowledge_chunks").delete().eq("document_id", doc.id);
-    const chunkIds = await indexDocument(supabase, updated, text);
-    await supabase
-      .from("knowledge_documents")
-      .update({ metadata: { ...(updated.metadata || {}), chunk_count: chunkIds.length } })
-      .eq("id", doc.id);
-  }
-
+  const updated = await replaceDocumentText(supabase, doc, name, text);
+  if (!updated) return NextResponse.json({ error: "Could not save the change." }, { status: 500 });
   return NextResponse.json({ document: updated });
 }

@@ -101,7 +101,15 @@ export default async function AdminPage() {
                   </p>
                 </div>
                 {client.employee ? (
-                  <div className="w-full">
+                  <div className="w-full space-y-1">
+                    <p className="text-sm">
+                      <Link
+                        href={`/trainer/knowledge?employee=${client.employee.id}`}
+                        className="font-semibold text-accent hover:underline"
+                      >
+                        Knowledge base
+                      </Link>
+                    </p>
                     <ClientTrainingEditor
                       employeeId={client.employee.id}
                       employeeName={client.employee.name}

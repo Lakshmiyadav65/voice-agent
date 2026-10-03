@@ -25,7 +25,7 @@ export interface QAResult {
 /**
  * Helper to initialize ChatGroq model instance
  */
-export function getChatGroq(customApiKey?: string, modelOverride?: string): ChatGroq | null {
+export function getChatGroq(customApiKey?: string, modelOverride?: string, maxTokens = 1500): ChatGroq | null {
   const apiKey = customApiKey || process.env.GROQ_API_KEY;
   if (!apiKey || !apiKey.trim()) {
     return null;
@@ -36,7 +36,7 @@ export function getChatGroq(customApiKey?: string, modelOverride?: string): Chat
       apiKey: apiKey.trim(),
       model: modelOverride || process.env.GROQ_MODEL || "qwen/qwen3.8-27b",
       temperature: 0.2,
-      maxTokens: 1500,
+      maxTokens,
     });
   } catch (err) {
     console.warn("Failed to initialize ChatGroq:", err);

@@ -2,6 +2,9 @@
 
 import { useState, useRef } from "react";
 
+import { KnowledgeDocumentView } from "./KnowledgeDocumentView";
+import { KnowledgeMeter } from "./KnowledgeMeter";
+
 interface DocumentUploaderProps {
   aiEmployeeId: string;
   employeeName: string;
@@ -27,8 +30,47 @@ export function DocumentUploader({
   const [isDragging, setIsDragging] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; isError: boolean } | null>(null);
   const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
+  // Whether the open document shows its dashboard in edit mode.
+  const [openEditing, setOpenEditing] = useState(false);
+  // The plain-text editor, the fallback reached from the dashboard editor.
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const [draftText, setDraftText] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function startEditing(doc: { id: string; name: string; raw_text: string }) {
+    setEditingDocId(doc.id);
+    setExpandedDocId(null);
+    setDraftName(doc.name);
+    setDraftText(doc.raw_text);
+    setEditError("");
+  }
+
+  // The server re-chunks changed text, so the next call already uses the edit.
+  async function saveEdit() {
+    if (!editingDocId) return;
+    setSavingEdit(true);
+    setEditError("");
+    try {
+      const res = await fetch("/api/rag/documents", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editingDocId, name: draftName, text: draftText }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Could not save the change.");
+      setEditingDocId(null);
+      setStatusMessage({ text: `✓ Saved "${data.document?.name ?? draftName}". Calls use the new version from now on.`, isError: false });
+      onUploadSuccess();
+    } catch (err) {
+      setEditError((err as Error).message);
+    } finally {
+      setSavingEdit(false);
+    }
+  }
 
   function handleFileSelected(selectedFile: File) {
     setFile(selectedFile);
@@ -293,6 +335,11 @@ TERMS & POLICIES:
             </div>
           </div>
 
+          <KnowledgeMeter
+            aiEmployeeId={aiEmployeeId}
+            refreshKey={documents.map((d) => `${d.id}:${d.updated_at}`).join("|")}
+          />
+
           <div className="space-y-3">
             {documents.map((doc: any) => {
               const isExpanded = expandedDocId === doc.id;
@@ -316,6 +363,7 @@ TERMS & POLICIES:
                         </div>
                         <p className="text-[11px] text-muted mt-0.5">
                           {doc.file_type || "text/plain"} • Added {new Date(doc.created_at).toLocaleDateString()}
+                          {doc.metadata?.uploaded_by ? ` by ${doc.metadata.uploaded_by}` : ""}
                         </p>
                       </div>
                     </div>
@@ -323,10 +371,26 @@ TERMS & POLICIES:
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setExpandedDocId(isExpanded ? null : doc.id)}
+                        onClick={() => {
+                          setExpandedDocId(isExpanded ? null : doc.id);
+                          setOpenEditing(false);
+                          setEditingDocId(null);
+                        }}
                         className="rounded-lg border border-border bg-surface px-2.5 py-1 text-[11px] font-medium text-ink hover:bg-accent-soft hover:text-accent cursor-pointer"
                       >
-                        {isExpanded ? "Hide Preview" : "View Content"}
+                        {isExpanded ? "Close" : "Open"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingDocId(null);
+                          setExpandedDocId(doc.id);
+                          setOpenEditing(true);
+                        }}
+                        disabled={(isExpanded && openEditing) || editingDocId === doc.id}
+                        className="rounded-lg border border-border bg-surface px-2.5 py-1 text-[11px] font-medium text-ink hover:bg-accent-soft hover:text-accent cursor-pointer disabled:opacity-50"
+                      >
+                        Edit
                       </button>
                       {onDeleteDocument && (
                         <button
@@ -342,13 +406,58 @@ TERMS & POLICIES:
 
 
 
-                  {/* Expanded Content View */}
-                  {isExpanded && (
-                    <div className="mt-3 border-t border-border pt-3">
-                      <p className="font-semibold text-[11px] text-ink mb-1.5">Stored Document Content:</p>
-                      <div className="max-h-48 overflow-y-auto rounded-lg bg-surface p-3 font-mono text-[11px] text-ink whitespace-pre-wrap border border-border leading-relaxed">
-                        {doc.raw_text}
+                  {editingDocId === doc.id && (
+                    <div className="mt-3 space-y-2 border-t border-border pt-3">
+                      <input
+                        value={draftName}
+                        onChange={(e) => setDraftName(e.target.value)}
+                        aria-label="Title"
+                        className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-xs text-ink outline-hidden focus:border-accent"
+                      />
+                      <textarea
+                        value={draftText}
+                        onChange={(e) => setDraftText(e.target.value)}
+                        rows={14}
+                        aria-label="Text"
+                        className="w-full rounded-lg border border-border bg-surface p-3 font-mono text-[11px] leading-relaxed text-ink outline-hidden focus:border-accent"
+                      />
+                      {editError ? <p className="text-[11px] text-warn">{editError}</p> : null}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={saveEdit}
+                          disabled={savingEdit || !draftName.trim() || !draftText.trim()}
+                          className="rounded-lg bg-accent px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-accent/90 disabled:opacity-50 cursor-pointer"
+                        >
+                          {savingEdit ? "Saving…" : "Save changes"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingDocId(null)}
+                          disabled={savingEdit}
+                          className="rounded-lg border border-border px-3 py-1.5 text-[11px] font-semibold text-ink cursor-pointer"
+                        >
+                          Cancel
+                        </button>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Expanded: the document laid out as a dashboard */}
+                  {isExpanded && (
+                    <div className="mt-3 border-t border-border pt-4">
+                      <KnowledgeDocumentView
+                        documentId={doc.id}
+                        name={doc.name}
+                        rawText={doc.raw_text}
+                        editing={openEditing}
+                        onEditingChange={setOpenEditing}
+                        onSaved={() => {
+                          setStatusMessage({ text: `✓ Saved "${doc.name}". Calls use the new version from now on.`, isError: false });
+                          onUploadSuccess();
+                        }}
+                        onEditText={() => startEditing(doc)}
+                      />
                     </div>
                   )}
                 </div>

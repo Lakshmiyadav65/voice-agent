@@ -197,10 +197,8 @@ export const trainerPages = {
   },
   knowledge: {
     title: "Knowledge",
-    description: "Documents, FAQs, and knowledge base content per business.",
+    description: "Each client's knowledge base. Upload, read, edit and delete what their agent knows, the same as the client can.",
     breadcrumbs: [{ label: "Trainer", href: "/trainer" }, { label: "Knowledge" }],
-    comingInPhase: "Phase 6",
-    features: ["Upload and parse documents", "Chunk and embedding status", "Retrieval test"],
   },
   configuration: {
     title: "AI Configuration",

@@ -1,0 +1,150 @@
+SUNRISE GREENS - KNOWLEDGE BASE
+(Sample data for testing. The project, prices and numbers below are made up.)
+
+==================================================
+1. ABOUT US
+==================================================
+Company: Sunrise Greens Developers Pvt. Ltd.
+In business since 2009. 14 projects delivered in Hyderabad, more than 6,500 families living in our homes.
+Sales office: Plot 21, Tellapur Main Road, Tellapur, Hyderabad 502032.
+Office hours: Monday to Sunday, 9:30 AM to 7:00 PM. Open on Sundays and public holidays for site visits.
+Sales phone: +91 90000 12345
+Email: sales@sunrisegreens.example
+Languages our team speaks: Telugu, English, Hindi.
+
+==================================================
+2. CURRENT PROJECT: SUNRISE GREENS RESIDENCES, TELLAPUR
+==================================================
+Type: Gated community of apartments.
+Land: 12 acres, of which 75% is open space and landscaping.
+Towers: 6 towers (A to F), each Ground + 22 floors.
+Total homes: 1,120 apartments, only 4 apartments per floor (no shared walls on two sides).
+Approvals: HMDA approved. RERA registration number: P02400009999 (sample).
+Construction: Mivan (aluminium formwork) technology, earthquake resistant (Zone II).
+
+Possession:
+- Towers A and B: ready to move in by December 2026.
+- Towers C and D: possession June 2027.
+- Towers E and F: possession March 2028 (newly launched).
+
+==================================================
+3. APARTMENT TYPES AND PRICES
+==================================================
+Base price: Rs 6,450 per sq ft (Towers A-D), Rs 6,200 per sq ft (new launch, Towers E-F).
+
+2 BHK - 1,240 sq ft - from Rs 79 lakh (Towers E-F: from Rs 77 lakh)
+2.5 BHK - 1,460 sq ft - from Rs 94 lakh
+3 BHK - 1,710 sq ft - from Rs 1.10 crore (most popular)
+3 BHK Premium (with utility + study) - 2,050 sq ft - from Rs 1.32 crore
+4 BHK Sky Villa (top floors only) - 2,980 sq ft - from Rs 1.95 crore
+
+Floor rise: Rs 30 per sq ft for every floor above the 5th floor.
+East-facing and park-facing units: Rs 100 per sq ft extra.
+
+Other charges (not included in the price above):
+- Car parking: 1 covered parking included with 2 BHK and 2.5 BHK; 2 covered parkings included with 3 BHK and above. Extra parking: Rs 4 lakh.
+- Clubhouse membership: Rs 2.5 lakh (one time).
+- Corpus fund: Rs 50 per sq ft (one time).
+- Maintenance: Rs 3.50 per sq ft per month; first 12 months paid in advance at registration.
+- GST: 5% on under-construction homes. No GST on Towers A and B once the occupancy certificate is issued.
+- Stamp duty and registration: as per Telangana government rates, paid by the buyer.
+
+==================================================
+4. CURRENT OFFERS (valid till 31 December 2026)
+==================================================
+- Book with Rs 2 lakh, then pay 10% within 30 days.
+- Free modular kitchen for 3 BHK and above bookings.
+- Rs 1 lakh off for existing Sunrise Greens customers (referral or repeat buyers).
+- No pre-EMI till possession on Towers E and F, under the bank subvention plan (selected banks only).
+Offers cannot be combined unless the sales manager approves it.
+
+==================================================
+5. PAYMENT PLANS AND HOME LOANS
+==================================================
+Construction-linked plan (standard):
+- 10% on booking
+- 10% on foundation
+- 50% spread across slab stages
+- 20% on brickwork, plastering and flooring
+- 10% on possession
+
+Down-payment plan: pay 90% within 60 days and get Rs 150 per sq ft off.
+
+Home loans: pre-approved with SBI, HDFC Bank, ICICI Bank, Axis Bank, LIC Housing Finance and Bank of Baroda.
+Loan up to 80% of the property value, depending on the bank and the buyer's eligibility.
+Our loan desk helps with the paperwork for free.
+
+==================================================
+6. AMENITIES
+==================================================
+- 55,000 sq ft clubhouse with banquet hall, guest rooms and a mini theatre
+- Swimming pool (adults) and a separate kids' pool
+- Gym, yoga room and indoor games (table tennis, badminton, squash)
+- Cricket practice nets, tennis court, basketball court
+- 1.2 km jogging and cycling track
+- Children's play area and a creche
+- Senior citizens' garden and a temple
+- Supermarket, pharmacy and ATM inside the community
+- 100% power backup for common areas and 2 kW per apartment
+- 24x7 security, CCTV, video door phone, 3-level security
+- EV charging points in the basement
+- Rainwater harvesting and sewage treatment plant
+- Pet-friendly: pets allowed, with a pet park
+
+==================================================
+7. LOCATION AND DISTANCES
+==================================================
+Address of the project: Survey No. 120, Tellapur, near Kollur ORR exit, Hyderabad.
+
+- Outer Ring Road (Kollur exit): 3 km
+- Gachibowli: 12 km (about 20 minutes)
+- Financial District / Nanakramguda: 10 km
+- HITEC City: 16 km
+- Rajiv Gandhi International Airport: 38 km via ORR (about 40 minutes)
+- Proposed metro station: 2 km
+
+Schools nearby: Greenwood International School (6 km), Little Lotus CBSE School (4 km), Bright Minds Academy (9 km).
+Hospitals nearby: Lifeline Multispeciality Hospital (7 km), Sunshine Children's Hospital (11 km).
+Shopping: Lakeview Mall (14 km), local market in Tellapur (2 km).
+
+==================================================
+8. SITE VISITS
+==================================================
+- Site visits every day from 10:00 AM to 6:00 PM.
+- A model flat for 2 BHK and 3 BHK is ready to see in Tower A.
+- Free pick-up and drop within 15 km of the site (Gachibowli, Kondapur, Miyapur, Chandanagar, Lingampally). Book one day in advance.
+- A site visit takes about 1 hour.
+- Customers should bring a photo ID if they want to book on the same day.
+
+==================================================
+9. FREQUENTLY ASKED QUESTIONS
+==================================================
+Q: Is the project Vastu compliant?
+A: Yes. All apartments are Vastu compliant, and east-facing units are available in every tower.
+
+Q: What is the water source?
+A: Municipal water (HMWSSB) connection plus borewells, with a water treatment plant.
+
+Q: Can NRIs buy?
+A: Yes. We have an NRI desk; payments can be made from NRE/NRO accounts and documents can be signed by power of attorney.
+
+Q: Is there a cancellation policy?
+A: Bookings cancelled within 15 days get a full refund. After 15 days, 2% of the apartment value is deducted.
+
+Q: Can I customise the apartment?
+A: Small changes (flooring, bathroom fittings) are possible in Towers E and F if requested before the 10th slab.
+
+Q: What is the carpet area?
+A: About 70% of the sq ft numbers above are carpet area. The exact carpet area is printed on each unit's floor plan.
+
+Q: Are there ready-to-move-in homes?
+A: Towers A and B will be ready by December 2026. A few units in Tower A are left.
+
+==================================================
+10. RULES FOR THE AGENT
+==================================================
+- Never promise a fixed return on investment or a guaranteed price rise.
+- Never confirm a discount or a unit number on the call; say the sales manager will confirm it.
+- If the customer asks something not written here, say a sales manager will call back with the answer.
+- If the customer wants a site visit, collect the preferred date, time and whether they need a pick-up.
+- If the customer is not interested, thank them politely and end the call.

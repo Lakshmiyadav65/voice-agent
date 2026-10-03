@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 
-import { SARVAM_PER_CALL_SETTINGS } from "@/lib/sarvam/agent-settings";
 import { AGENT_LANGUAGES, type AgentLanguage, type AgentSettings } from "@/lib/voice/agent-settings";
 
 type Props = {
@@ -13,13 +12,10 @@ type Props = {
 export const input =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-ink outline-hidden focus:border-accent";
 
+// No platform setting reaches a call any more: agents are set up in Sarvam's console.
 export function LiveBadge({ setting }: { setting: keyof AgentSettings }) {
-  if (!SARVAM_PER_CALL_SETTINGS.includes(setting)) return null;
-  return (
-    <span className="ml-2 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
-      Live on calls
-    </span>
-  );
+  void setting;
+  return null;
 }
 
 export function Section({ title, children }: { title: string; children: ReactNode }) {

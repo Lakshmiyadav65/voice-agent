@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { canAccessBusiness, getAccessScope, primaryBusinessId } from "@/lib/auth/access";
+import { isPlatformStaff } from "@/lib/auth/roles";
 import { getSessionContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -64,6 +65,10 @@ export async function POST(request: Request) {
     const session = await getSessionContext();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    // Staff create each client's AI employee when adding the client; owners cannot add one.
+    if (!isPlatformStaff(session.profile.platform_role)) {
+      return NextResponse.json({ error: "AI employees are set up by our team." }, { status: 403 });
     }
 
     const body = await request.json();

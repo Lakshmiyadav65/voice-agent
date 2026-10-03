@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 
-import { AgentGlyph, PlusIcon, SearchIcon } from "./icons";
+import { AgentGlyph, SearchIcon } from "./icons";
 
 export type AgentRow = { id: string; name: string; status: string; updatedAt: string };
 
-const STATUS_LABEL: Record<string, string> = { draft: "Draft", testing: "Testing", live: "Live", paused: "Paused" };
+const STATUS_LABEL: Record<string, string> = { draft: "Being set up", testing: "Testing", live: "Live", paused: "Paused" };
 
 // A shared minute clock. The server snapshot is null, so the first client render matches the
 // server HTML and the relative times fill in right after hydration.
@@ -50,52 +49,22 @@ function timeAgo(iso: string, now: number): string {
   return formatDate(iso);
 }
 
-export function AgentsHome({ agents, canCreate }: { agents: AgentRow[]; canCreate: boolean }) {
-  const router = useRouter();
+/**
+ * The owner's agents. Staff create each one when they add the client and train it in
+ * Sarvam's console, so there is nothing to create here.
+ */
+export function AgentsHome({ agents }: { agents: AgentRow[] }) {
   const now = useNow();
   const [query, setQuery] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState("");
-
-  async function create() {
-    if (creating) return;
-    setCreating(true);
-    setError("");
-    try {
-      const res = await fetch("/api/agents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? "Could not create the agent.");
-      router.push(`/dashboard/agents/${data.id}`);
-    } catch (err) {
-      setError((err as Error).message);
-      setCreating(false);
-    }
-  }
 
   const shown = agents.filter((a) => a.name.toLowerCase().includes(query.trim().toLowerCase()));
 
   return (
     <div className="min-h-[calc(100vh-2rem)] rounded-2xl border border-border bg-surface px-4 py-5 sm:px-8 sm:py-6">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h1 className="text-lg font-medium text-ink">Agents</h1>
-        {canCreate ? (
-          <button
-            type="button"
-            onClick={create}
-            disabled={creating}
-            className="inline-flex items-center gap-2 rounded-full bg-ink px-4 py-2.5 text-sm font-semibold text-surface transition hover:opacity-90 disabled:opacity-60"
-          >
-            <PlusIcon />
-            {creating ? "Creating…" : "Create from scratch"}
-          </button>
-        ) : null}
+        <p className="text-sm text-muted">Our team sets up and trains your agents.</p>
       </div>
-
-      {error ? <p className="mt-3 text-right text-sm text-warn">{error}</p> : null}
 
       <div className="mx-auto mt-8 max-w-4xl">
         <h3 className="text-xl font-medium text-ink">Recents</h3>
@@ -139,7 +108,7 @@ export function AgentsHome({ agents, canCreate }: { agents: AgentRow[]; canCreat
             </ul>
           ) : (
             <p className="px-4 py-8 text-sm text-muted">
-              {agents.length ? "No agents match that search." : "No agents yet. Use Create from scratch to make one."}
+              {agents.length ? "No agents match that search." : "Your agent is being set up. It will appear here once our team has added it."}
             </p>
           )}
         </div>

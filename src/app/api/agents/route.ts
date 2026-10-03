@@ -1,15 +1,23 @@
 import { NextResponse } from "next/server";
 
 import { getAccessScope, primaryBusinessId } from "@/lib/auth/access";
+import { isPlatformStaff } from "@/lib/auth/roles";
 import { getSessionContext } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitizeAgentSettings } from "@/lib/voice/agent-settings";
 import { draftAgentFromDescription } from "@/lib/voice/agent-simulation";
 
-/** Creates an agent, either blank ("Create from scratch") or drafted from a one-line description. */
+/**
+ * Creates an agent, either blank ("Create from scratch") or drafted from a one-line description.
+ * Retired: staff create each client's agent when adding the client and train it in Sarvam's
+ * console, so owners can no longer add one.
+ */
 export async function POST(request: Request) {
   const session = await getSessionContext();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isPlatformStaff(session.profile.platform_role)) {
+    return NextResponse.json({ error: "Agents are set up by our team." }, { status: 403 });
+  }
 
   const supabase = createAdminClient();
   if (!supabase) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });

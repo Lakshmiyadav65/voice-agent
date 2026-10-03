@@ -10,5 +10,5 @@ export default async function AgentsPage() {
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
     .map((e) => ({ id: e.id, name: e.name, status: e.status, updatedAt: e.updated_at }));
 
-  return <AgentsHome agents={agents} canCreate={Boolean(workspace.primaryBusiness)} />;
+  return <AgentsHome agents={agents} />;
 }

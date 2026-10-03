@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { triggerLeadCall } from "@/lib/sarvam/client";
-import { toSarvamOverrides, toSarvamVariables } from "@/lib/sarvam/agent-settings";
+import { toSarvamVariables } from "@/lib/sarvam/agent-settings";
 import {
   DEFAULT_AGENT_SETTINGS,
   effectiveInstructions,
@@ -267,21 +267,18 @@ async function placeSarvamCall(
   brief: CallBrief,
   customerName: string
 ) {
-  const overrides = toSarvamOverrides(context.settings, brief.greeting);
-
   return triggerLeadCall({
     agentId: context.sarvamAgentId ?? undefined,
     customerName,
     phoneNumber: options.phoneNumber,
     reason: options.reason,
     agentVariables: {
-      ...toSarvamVariables(brief, context.settings),
+      ...toSarvamVariables(brief),
       ...(options.agentVariables || {}),
     },
-    // A greeting asked for by the caller always goes; otherwise only one set on our platform.
-    initialBotMessage: options.initialBotMessage ? brief.greeting : (overrides.initial_bot_message ?? undefined),
+    // The agent's own greeting and language from Sarvam's console, unless this call asks for a greeting.
+    initialBotMessage: options.initialBotMessage ? brief.greeting : undefined,
     initialStateName: options.initialStateName,
-    initialLanguage: overrides.initial_language_name,
     webhookUrl: options.webhookUrl,
     metadata: {
       ...(options.leadId ? { lead_id: options.leadId } : {}),

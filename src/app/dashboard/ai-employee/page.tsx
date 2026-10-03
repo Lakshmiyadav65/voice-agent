@@ -59,7 +59,7 @@ export default async function AiEmployeePage() {
           <div>
             <h1 className="font-display text-2xl font-bold text-ink">AI Employee Hub</h1>
             <p className="mt-1 text-xs text-muted">
-              Create and train voice agents to speak with leads using spoken onboarding and business documents.
+              Teach your AI employee about your business: explain it by speaking, upload documents, and choose what it should find out on calls.
             </p>
           </div>
           {business && (

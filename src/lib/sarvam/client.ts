@@ -110,18 +110,36 @@ export async function triggerLeadCall(
   };
 
   const url = `${SARVAM_OUTBOUND_BASE_URL}/v1/orgs/${orgId}/workspaces/${workspaceId}/outbounds`;
-
-  try {
+  const send = async (body: SarvamInstantOutboundRequest) => {
     const res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-API-Key": apiKey,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(body),
     });
+    return { res, data: await res.json().catch(() => ({})) };
+  };
 
-    const data = await res.json();
+  try {
+    let { res, data } = await send(payload);
+
+    // Sarvam refuses the whole call if one variable is not defined on the agent's canvas, and an
+    // agent trained in the console defines only what its prompt uses. So retry once without
+    // the unknown ones, and log them: a missing business_description means no knowledge.
+    const unknown = res.status === 422 ? unknownAgentVariables(data) : [];
+    if (unknown.length && payload.app_config.agent_variables) {
+      const kept = Object.fromEntries(
+        Object.entries(payload.app_config.agent_variables).filter(([key]) => !unknown.includes(key))
+      );
+      console.warn(`[Sarvam] Agent ${agentId} does not define ${unknown.join(", ")}; calling without them.`);
+      ({ res, data } = await send({
+        ...payload,
+        // undefined drops the field from the JSON when nothing is left to send.
+        app_config: { ...payload.app_config, agent_variables: Object.keys(kept).length ? kept : undefined },
+      }));
+    }
 
     if (!res.ok) {
       const errorMsg = data?.detail || data?.message || JSON.stringify(data);
@@ -133,4 +151,15 @@ export async function triggerLeadCall(
   } catch (err: any) {
     return { success: false, error: err.message || "Failed to contact Sarvam Voice Agents API" };
   }
+}
+
+/**
+ * The variable names in Sarvam's 422 "Agent variables '{'a', 'b'}' not found in agent
+ * variables of app ..." error; empty for any other error.
+ */
+export function unknownAgentVariables(error: unknown): string[] {
+  const details = (error as { error?: { data?: { details?: unknown } } })?.error?.data?.details;
+  if (typeof details !== "string") return [];
+  const list = details.match(/Agent variables '\{(.+?)\}' not found/)?.[1];
+  return list ? Array.from(list.matchAll(/'([^']+)'/g), (m) => m[1]) : [];
 }

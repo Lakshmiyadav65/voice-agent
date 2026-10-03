@@ -32,12 +32,17 @@ export async function checkSubmissionAllowed(
   const supabase = createAdminClient();
   if (!supabase) return { allowed: true };
 
+  // The cooldown guards the call budget, so a request whose call was never placed (still
+  // "new", e.g. the voice account refused it) does not block a retry. Anything from the last
+  // minute still counts, so a double submit cannot slip in while the first call is dialling.
   const phoneSince = new Date(Date.now() - PHONE_COOLDOWN_MINUTES * 60_000).toISOString();
+  const justNow = new Date(Date.now() - 60_000).toISOString();
   const { data: recentForPhone } = await supabase
     .from("leads")
     .select("id")
     .eq("phone", phone)
     .gte("created_at", phoneSince)
+    .or(`status.neq.new,created_at.gte.${justNow}`)
     .limit(1);
 
   if (recentForPhone?.length) {

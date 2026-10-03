@@ -13,7 +13,10 @@ import {
 import { captureBriefing, sanitizeCaptureFields } from "@/lib/voice/capture-fields";
 import { localizeGreeting } from "@/lib/voice/localize-greeting";
 
-const KNOWLEDGE_CHAR_LIMIT = 7500;
+// How much knowledge one call carries. Sarvam's API accepts far more (120,000 characters
+// tested 2026-10-03); the limit is about how well, and how fast, the agent uses a long
+// prompt, so it can be tuned from the environment while real calls are compared.
+const KNOWLEDGE_CHAR_LIMIT = Number(process.env.KNOWLEDGE_CHAR_LIMIT) || 7500;
 
 export type DispatchLeadCallOptions = {
   aiEmployeeId?: string | null;

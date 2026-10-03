@@ -5,6 +5,7 @@ import {
   DEFAULT_AGENT_SETTINGS,
   effectiveInstructions,
   fillTemplate,
+  GENERIC_ENQUIRY,
   languageRules,
   sanitizeAgentSettings,
   type AgentSettings,
@@ -149,7 +150,7 @@ export function buildCallBrief(
     lead_name: lead.name,
     lead_phone: lead.phone,
     preferred_language: context.settings.startingLanguage,
-    lead_enquiry: lead.reason || "Inquiry regarding services and pricing",
+    lead_enquiry: lead.reason || GENERIC_ENQUIRY,
     interested_product: "Services & Products from catalog",
   };
 
@@ -221,7 +222,8 @@ async function placeSarvamCall(
       ...toSarvamVariables(brief, context.settings),
       ...(options.agentVariables || {}),
     },
-    initialBotMessage: overrides.initial_bot_message ?? brief.greeting,
+    // A greeting asked for by the caller always goes; otherwise only one set on our platform.
+    initialBotMessage: options.initialBotMessage ? brief.greeting : (overrides.initial_bot_message ?? undefined),
     initialStateName: options.initialStateName,
     initialLanguage: overrides.initial_language_name,
     webhookUrl: options.webhookUrl,

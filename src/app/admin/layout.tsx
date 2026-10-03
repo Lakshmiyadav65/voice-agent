@@ -2,7 +2,7 @@ import { AppShell } from "@/components/shell/AppShell";
 import { requireTrainerAccess } from "@/lib/auth/session";
 import { trainerNav } from "@/lib/navigation";
 
-/** The admin page sits inside the staff console: same menu, same staff-only login. */
+/** The admin page sits inside the admin portal: same menu, same staff-only login. */
 export default async function AdminLayout({
   children,
 }: Readonly<{
@@ -13,8 +13,9 @@ export default async function AdminLayout({
   return (
     <AppShell
       nav={trainerNav}
-      title="Trainer console"
-      subtitle="Internal AI trainer"
+      portal="staff"
+      title="Not visible to clients"
+      subtitle="Staff only"
       homeHref="/trainer"
       userLabel={session.profile.full_name ?? session.email}
     >

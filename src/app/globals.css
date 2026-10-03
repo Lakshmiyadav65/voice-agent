@@ -41,6 +41,21 @@ body {
   font-family: var(--font-manrope), system-ui, sans-serif;
 }
 
+/*
+ * The admin portal (staff: /admin and /trainer) runs in blue, so it is never mistaken
+ * for a client's green dashboard. Set on body too, so the page behind the shell matches.
+ */
+body:has([data-portal="staff"]),
+[data-portal="staff"] {
+  --background: #edf1f8;
+  --foreground: #1a2333;
+  --muted: #56637a;
+  --border: #d0d8e6;
+  --accent: #1d4ed8;
+  --accent-soft: #dce6fb;
+  --ink: #0a1328;
+}
+
 @keyframes rise-in {
   from {
     opacity: 0;

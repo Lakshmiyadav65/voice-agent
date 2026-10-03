@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { AppSectionPage } from "@/components/shell/AppSectionPage";
 import { AddClientForm } from "@/components/trainer/AddClientForm";
+import { ClientAgentField } from "@/components/trainer/ClientAgentField";
 import { requireTrainerAccess } from "@/lib/auth/session";
 import type { PageMeta } from "@/lib/pages";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -12,7 +13,13 @@ const meta: PageMeta = {
   breadcrumbs: [{ label: "Trainer", href: "/trainer" }, { label: "Add clients" }],
 };
 
-type ClientRow = { id: string; name: string; createdAt: string; owners: string[]; agent: string };
+type ClientRow = {
+  id: string;
+  name: string;
+  createdAt: string;
+  owners: string[];
+  employee: { id: string; name: string; sarvamAgentId: string | null } | null;
+};
 
 async function loadClients(): Promise<ClientRow[]> {
   const supabase = createAdminClient();
@@ -31,12 +38,15 @@ async function loadClients(): Promise<ClientRow[]> {
   return (businesses ?? []).map((b) => {
     const employee = (employees ?? []).find((e) => e.business_id === b.id);
     const owners = (members ?? []).filter((m) => m.business_id === b.id).map((m) => emailOf.get(m.user_id) ?? "—");
-    const agent = !employee
-      ? "No agent yet"
-      : employee.sarvam_agent_id
-        ? `${employee.name} (Sarvam ${employee.sarvam_agent_id})`
-        : `${employee.name} (shared agent)`;
-    return { id: b.id, name: b.name, createdAt: b.created_at, owners, agent };
+    return {
+      id: b.id,
+      name: b.name,
+      createdAt: b.created_at,
+      owners,
+      employee: employee
+        ? { id: employee.id, name: employee.name, sarvamAgentId: employee.sarvam_agent_id ?? null }
+        : null,
+    };
   });
 }
 
@@ -64,7 +74,15 @@ export default async function AdminPage() {
                   <p className="text-sm text-muted">{client.owners.length ? client.owners.join(", ") : "No owner login"}</p>
                 </div>
                 <div className="text-right text-sm">
-                  <p className="text-foreground">{client.agent}</p>
+                  {client.employee ? (
+                    <ClientAgentField
+                      employeeId={client.employee.id}
+                      employeeName={client.employee.name}
+                      sarvamAgentId={client.employee.sarvamAgentId}
+                    />
+                  ) : (
+                    <p className="text-foreground">No agent yet</p>
+                  )}
                   <p className="text-xs text-muted">
                     Added{" "}
                     {new Date(client.createdAt).toLocaleDateString("en-IN", {

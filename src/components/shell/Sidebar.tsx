@@ -13,6 +13,8 @@ type SidebarProps = {
   subtitle: string;
   homeHref: string;
   userLabel?: string;
+  /** A solid pill above the name, so staff always know they are in the admin portal. */
+  badge?: string;
 };
 
 /** Line icons keyed by the last path segment; pages without one get a neutral dot. */
@@ -65,13 +67,18 @@ function NavIcon({ href }: { href: string }) {
   );
 }
 
-export function Sidebar({ groups, title, subtitle, homeHref, userLabel }: SidebarProps) {
+export function Sidebar({ groups, title, subtitle, homeHref, userLabel, badge }: SidebarProps) {
   const pathname = usePathname();
 
   return (
     <aside className="flex w-full flex-col border-b border-border bg-surface md:sticky md:top-3 md:h-[calc(100vh-1.5rem)] md:w-64 md:shrink-0 md:rounded-2xl md:border md:shadow-xs">
       <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-4 md:px-5 md:pt-6">
         <Link href={homeHref} className="min-w-0">
+          {badge ? (
+            <span className="mb-1.5 inline-block rounded-full bg-accent px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white">
+              {badge}
+            </span>
+          ) : null}
           <span className="block truncate font-display text-2xl text-ink">AI Employee</span>
           <span className="block truncate text-xs text-muted">
             {subtitle} · {title}

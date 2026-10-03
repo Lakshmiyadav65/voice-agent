@@ -1,4 +1,9 @@
-import { BUILT_IN_VARIABLES, type AgentSettings } from "@/lib/voice/agent-settings";
+import {
+  DEFAULT_AGENT_SETTINGS,
+  DEFAULT_GREETING,
+  GENERIC_ENQUIRY,
+  type AgentSettings,
+} from "@/lib/voice/agent-settings";
 import { composeBriefing } from "@/lib/voice/briefing";
 import type { CallBrief } from "@/lib/voice/dispatch-lead-call";
 import type { SarvamAppOverrides } from "./types";
@@ -21,26 +26,51 @@ export const SARVAM_PER_CALL_SETTINGS: ReadonlyArray<keyof AgentSettings> = [
   "switchLanguageDuringCall",
 ];
 
+/*
+ * Agents are trained in Sarvam's console, so an agent keeps its own greeting and
+ * language unless someone changed them on our platform: sending our defaults would
+ * replace, say, a Telugu agent's own intro with our English one.
+ */
+function greetingChanged(settings: AgentSettings): boolean {
+  return settings.greeting.trim() !== DEFAULT_GREETING;
+}
+
+function languageChanged(settings: AgentSettings): boolean {
+  const d = DEFAULT_AGENT_SETTINGS;
+  const sameLanguages = [...settings.allowedLanguages].sort().join() === [...d.allowedLanguages].sort().join();
+  return (
+    settings.startingLanguage !== d.startingLanguage ||
+    settings.switchLanguageDuringCall !== d.switchLanguageDuringCall ||
+    !sameLanguages
+  );
+}
+
 export function toSarvamOverrides(
   settings: AgentSettings,
   greeting: string
 ): Pick<SarvamAppOverrides, "initial_bot_message" | "initial_language_name"> {
   return {
-    initial_bot_message: greeting,
+    ...(greetingChanged(settings) ? { initial_bot_message: greeting } : {}),
     // Our language names are the same strings as Sarvam's enum.
-    initial_language_name: settings.startingLanguage,
+    ...(languageChanged(settings) ? { initial_language_name: settings.startingLanguage } : {}),
   };
 }
 
 /**
- * Only the variables the Sarvam canvas defines are sent; custom variables are
- * already filled into the greeting and instructions on our side. The canvas
- * prompt is generic, so an owner's own instructions and the language rules
- * travel inside business_description, ahead of the knowledge, and take priority.
+ * Every value the agent might use: the built-ins (knowledge, instructions and any
+ * changed language rules travel in business_description), the owner's custom
+ * variables (e.g. project_name for an agent whose facts are variables), and the
+ * lead under the names Sarvam's agent builder gives them. Empty values are left
+ * out, since sending one would blank the default the agent has in Sarvam.
  */
 export function toSarvamVariables(brief: CallBrief, settings: AgentSettings): Record<string, string> {
-  const vars: Record<string, string> = {};
-  for (const { key } of BUILT_IN_VARIABLES) vars[key] = brief.values[key] ?? "";
-  vars.business_description = composeBriefing(brief, settings.instructions);
-  return vars;
+  const language = languageChanged(settings);
+  const vars: Record<string, string> = {
+    ...brief.values,
+    business_description: composeBriefing(brief, settings.instructions, language),
+    customer_name: brief.values.lead_name,
+    interested_in: brief.values.lead_enquiry === GENERIC_ENQUIRY ? "" : brief.values.lead_enquiry,
+  };
+  if (!language) delete vars.preferred_language;
+  return Object.fromEntries(Object.entries(vars).filter(([, value]) => value?.trim()));
 }

@@ -137,6 +137,9 @@ STYLE
 - If asked, say clearly that you are an AI assistant calling on behalf of {{business_name}}.
 - If they are not interested, do not pressure them; thank them and end the call politely.`;
 
+/** What a lead's enquiry reads as when the form or ad gave none. */
+export const GENERIC_ENQUIRY = "Inquiry regarding services and pricing";
+
 export const DEFAULT_GREETING =
   "Hello! I am calling from {{business_name}} regarding your recent inquiry. Am I speaking with {{lead_name}}?";
 

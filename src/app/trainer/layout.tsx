@@ -12,8 +12,9 @@ export default async function TrainerLayout({
   return (
     <AppShell
       nav={trainerNav}
-      title="Trainer console"
-      subtitle="Internal AI trainer"
+      portal="staff"
+      title="Not visible to clients"
+      subtitle="Staff only"
       homeHref="/trainer"
       userLabel={session.profile.full_name ?? session.email}
     >

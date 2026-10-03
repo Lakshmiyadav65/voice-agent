@@ -21,6 +21,7 @@ export function LeadCaptureForm({
   const [honeypot, setHoneypot] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [message, setMessage] = useState("");
+  const [called, setCalled] = useState(false);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -49,6 +50,7 @@ export function LeadCaptureForm({
 
       if (res.ok && data.accepted) {
         setPhase("done");
+        setCalled(Boolean(data.called));
         setMessage(
           data.called
             ? `${employeeName} is calling ${phone} right now. Please pick up.`
@@ -74,7 +76,7 @@ export function LeadCaptureForm({
           Thanks, {name.split(" ")[0] || "there"}!
         </h3>
         <p className="mt-2 text-sm leading-relaxed text-accent">{message}</p>
-        <p className="mt-4 text-xs text-muted">Typically connects within 30 seconds.</p>
+        {called ? <p className="mt-4 text-xs text-muted">Typically connects within 30 seconds.</p> : null}
       </div>
     );
   }

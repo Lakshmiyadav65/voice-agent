@@ -154,8 +154,8 @@ export async function placeCallForLead(
     const error = result.success ? "No call id returned" : result.error;
     // Callers don't surface this (the hosted form only says whether a call was placed), so log it.
     console.error("[Lead call] Could not call lead", target.leadId, error);
-    // The lead is already saved, so the business can still follow up by hand.
-    await supabase.from("leads").update({ status: "unreachable" }).eq("id", target.leadId);
+    // No call was placed (e.g. the voice account is out of balance), so the lead keeps its status:
+    // "unreachable" would tell the owner the customer did not answer. They can still call by hand.
     return { ok: false, error };
   }
 

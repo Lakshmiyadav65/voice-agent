@@ -11,6 +11,7 @@ export default async function DashboardLayout({
 
   return (
     <AppShell
+      portal="client"
       nav={ownerNav}
       title="Business dashboard"
       subtitle="Business owner"

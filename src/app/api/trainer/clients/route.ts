@@ -9,6 +9,10 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // As shown in Sarvam's console, e.g. "Priya-Sales-12ab3456-7c8d": letters, digits and dashes.
 const SARVAM_AGENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{2,99}$/;
 
+const NOT_AN_AGENT_ID = "That does not look like a Sarvam agent ID. Copy it from the agent in Sarvam's console.";
+const AGENT_TAKEN = "That Sarvam agent already belongs to another client. Each client needs their own agent.";
+const NEEDS_MIGRATION = "Apply the phase 14 database migration first (supabase db push), then try again.";
+
 function loginUrl(request: Request): string {
   const base = process.env.APP_PUBLIC_URL?.trim() || new URL(request.url).origin;
   return `${base.replace(/\/$/, "")}/login`;
@@ -44,10 +48,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `The password needs at least ${MIN_PASSWORD_LENGTH} characters.` }, { status: 400 });
   }
   if (sarvamAgentId && !SARVAM_AGENT_ID_PATTERN.test(sarvamAgentId)) {
-    return NextResponse.json(
-      { error: "That does not look like a Sarvam agent ID. Copy it from the agent in Sarvam's console." },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: NOT_AN_AGENT_ID }, { status: 400 });
   }
 
   // An agent is trained for one client, so another client's calls must never run it.
@@ -58,10 +59,7 @@ export async function POST(request: Request) {
       .eq("sarvam_agent_id", sarvamAgentId)
       .limit(1);
     if (linked?.length) {
-      return NextResponse.json(
-        { error: "That Sarvam agent already belongs to another client. Each client needs their own agent." },
-        { status: 409 }
-      );
+      return NextResponse.json({ error: AGENT_TAKEN }, { status: 409 });
     }
   }
 
@@ -109,12 +107,60 @@ export async function POST(request: Request) {
     return fail(
       /sarvam_agent_id/.test(employeeError.message)
         ? employeeError.code === "23505"
-          ? "That Sarvam agent already belongs to another client. Each client needs their own agent."
-          : "Apply the phase 14 database migration first (supabase db push), then try again."
+          ? AGENT_TAKEN
+          : NEEDS_MIGRATION
         : "Could not create the AI employee.",
       business.id
     );
   }
 
   return NextResponse.json({ businessId: business.id, loginUrl: loginUrl(request), email, password });
+}
+
+/**
+ * Points an existing client's AI employee at the Sarvam agent staff trained for
+ * it, or back to the shared agent when the ID is cleared. Calls pick it up at once.
+ */
+export async function PATCH(request: Request) {
+  const session = await getSessionContext();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isPlatformStaff(session.profile.platform_role)) {
+    return NextResponse.json({ error: "Only platform staff can change a client's agent." }, { status: 403 });
+  }
+  const supabase = createAdminClient();
+  if (!supabase) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+
+  const body = await request.json().catch(() => null);
+  const employeeId = String(body?.employeeId ?? "").trim();
+  const sarvamAgentId = String(body?.sarvamAgentId ?? "").trim() || null;
+  if (!employeeId) return NextResponse.json({ error: "Choose the AI employee to update." }, { status: 400 });
+  if (sarvamAgentId && !SARVAM_AGENT_ID_PATTERN.test(sarvamAgentId)) {
+    return NextResponse.json({ error: NOT_AN_AGENT_ID }, { status: 400 });
+  }
+
+  if (sarvamAgentId) {
+    const { data: linked } = await supabase
+      .from("ai_employees")
+      .select("id")
+      .eq("sarvam_agent_id", sarvamAgentId)
+      .neq("id", employeeId)
+      .limit(1);
+    if (linked?.length) return NextResponse.json({ error: AGENT_TAKEN }, { status: 409 });
+  }
+
+  const { data: updated, error } = await supabase
+    .from("ai_employees")
+    .update({ sarvam_agent_id: sarvamAgentId, ...(sarvamAgentId ? { status: "live" as const } : {}) })
+    .eq("id", employeeId)
+    .select("id")
+    .maybeSingle();
+  if (error) {
+    const taken = error.code === "23505";
+    return NextResponse.json(
+      { error: taken ? AGENT_TAKEN : /sarvam_agent_id/.test(error.message) ? NEEDS_MIGRATION : "Could not save the agent." },
+      { status: taken ? 409 : 500 }
+    );
+  }
+  if (!updated) return NextResponse.json({ error: "That AI employee was not found." }, { status: 404 });
+  return NextResponse.json({ sarvamAgentId });
 }

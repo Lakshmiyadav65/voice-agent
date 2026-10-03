@@ -3,16 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { generatePassword } from "@/lib/auth/password";
+
 type Created = { loginUrl: string; email: string; password: string };
-
-// No 0/O or 1/l/I, so a password read out over the phone survives.
-const PASSWORD_ALPHABET = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-function generatePassword(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(12));
-  const chars = Array.from(bytes, (b) => PASSWORD_ALPHABET[b % PASSWORD_ALPHABET.length]).join("");
-  return `${chars.slice(0, 4)}-${chars.slice(4, 8)}-${chars.slice(8)}`;
-}
 
 function shareText({ loginUrl, email, password }: Created, businessName: string): string {
   return [

@@ -5,6 +5,7 @@ import { AddClientForm } from "@/components/trainer/AddClientForm";
 import { CallProblemsPanel } from "@/components/trainer/CallAlerts";
 import { ClientAgentField } from "@/components/trainer/ClientAgentField";
 import { ClientTrainingEditor } from "@/components/trainer/ClientTrainingEditor";
+import { ResetClientPassword } from "@/components/trainer/ResetClientPassword";
 import { requireTrainerAccess } from "@/lib/auth/session";
 import type { PageMeta } from "@/lib/pages";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -20,7 +21,7 @@ type ClientRow = {
   id: string;
   name: string;
   createdAt: string;
-  owners: string[];
+  owners: { id: string; email: string }[];
   employee: { id: string; name: string; sarvamAgentId: string | null; training: AgentTraining | null } | null;
 };
 
@@ -40,7 +41,7 @@ async function loadClients(): Promise<ClientRow[]> {
   const emailOf = new Map((profiles ?? []).map((p) => [p.id, p.email]));
   return (businesses ?? []).map((b) => {
     const employee = (employees ?? []).find((e) => e.business_id === b.id);
-    const owners = (members ?? []).filter((m) => m.business_id === b.id).map((m) => emailOf.get(m.user_id) ?? "—");
+    const owners = (members ?? []).filter((m) => m.business_id === b.id).map((m) => ({ id: m.user_id, email: emailOf.get(m.user_id) ?? "—" }));
     return {
       id: b.id,
       name: b.name,
@@ -79,7 +80,13 @@ export default async function AdminPage() {
               <li key={client.id} className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 p-4">
                 <div className="min-w-0">
                   <p className="font-medium text-ink">{client.name}</p>
-                  <p className="text-sm text-muted">{client.owners.length ? client.owners.join(", ") : "No owner login"}</p>
+                  {client.owners.length ? (
+                    client.owners.map((o) => (
+                      <ResetClientPassword key={o.id} userId={o.id} email={o.email} businessName={client.name} />
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted">No owner login</p>
+                  )}
                 </div>
                 <div className="text-right text-sm">
                   {client.employee ? (

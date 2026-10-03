@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -104,7 +105,12 @@ export function LoginForm() {
         </label>
 
         <label className="block space-y-2">
-          <span className="text-sm font-medium text-foreground">Password</span>
+          <span className="flex items-baseline justify-between gap-3">
+            <span className="text-sm font-medium text-foreground">Password</span>
+            <Link href="/forgot-password" className="text-xs font-medium text-accent hover:underline">
+              Forgot password?
+            </Link>
+          </span>
           <input
             type="password"
             autoComplete="current-password"

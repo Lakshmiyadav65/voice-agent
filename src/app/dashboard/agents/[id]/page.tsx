@@ -6,8 +6,9 @@ import { requireDashboardAccess } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitizeAgentSettings } from "@/lib/voice/agent-settings";
 import { sanitizeTests } from "@/lib/voice/agent-tests";
+import { sanitizeAgentTraining } from "@/lib/voice/agent-training";
 
-const SECTIONS: SectionId[] = ["instructions", "variables", "tools", "settings", "tests"];
+const SECTIONS: SectionId[] = ["training", "instructions", "variables", "tools", "settings", "tests"];
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -24,7 +25,7 @@ export default async function AgentPage({ params, searchParams }: PageProps) {
   if (!employee || !(await canManageBusiness(supabase, session, employee.business_id))) notFound();
 
   const requested = (await searchParams).section;
-  const section = SECTIONS.find((s) => s === requested) ?? "instructions";
+  const section = SECTIONS.find((s) => s === requested) ?? "training";
 
   return (
     <AgentBuilder
@@ -34,6 +35,7 @@ export default async function AgentPage({ params, searchParams }: PageProps) {
       initialSettings={sanitizeAgentSettings(employee.agent_settings)}
       initialTests={sanitizeTests(employee.agent_tests)}
       initialSection={section}
+      training={sanitizeAgentTraining(employee.agent_training)}
     />
   );
 }

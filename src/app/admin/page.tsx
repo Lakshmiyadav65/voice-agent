@@ -3,9 +3,11 @@ import Link from "next/link";
 import { AppSectionPage } from "@/components/shell/AppSectionPage";
 import { AddClientForm } from "@/components/trainer/AddClientForm";
 import { ClientAgentField } from "@/components/trainer/ClientAgentField";
+import { ClientTrainingEditor } from "@/components/trainer/ClientTrainingEditor";
 import { requireTrainerAccess } from "@/lib/auth/session";
 import type { PageMeta } from "@/lib/pages";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sanitizeAgentTraining, type AgentTraining } from "@/lib/voice/agent-training";
 
 const meta: PageMeta = {
   title: "Add clients",
@@ -18,7 +20,7 @@ type ClientRow = {
   name: string;
   createdAt: string;
   owners: string[];
-  employee: { id: string; name: string; sarvamAgentId: string | null } | null;
+  employee: { id: string; name: string; sarvamAgentId: string | null; training: AgentTraining | null } | null;
 };
 
 async function loadClients(): Promise<ClientRow[]> {
@@ -30,7 +32,7 @@ async function loadClients(): Promise<ClientRow[]> {
     supabase.from("businesses").select("id, name, created_at").order("created_at", { ascending: false }),
     supabase.from("business_members").select("business_id, user_id").eq("role", "owner"),
     supabase.from("profiles").select("id, email"),
-    // "*" rather than naming sarvam_agent_id, so the page still loads before the phase 14 migration.
+    // "*" rather than naming sarvam_agent_id or agent_training, so the page still loads before phases 14 and 15.
     supabase.from("ai_employees").select("*").order("created_at", { ascending: true }),
   ]);
 
@@ -44,7 +46,12 @@ async function loadClients(): Promise<ClientRow[]> {
       createdAt: b.created_at,
       owners,
       employee: employee
-        ? { id: employee.id, name: employee.name, sarvamAgentId: employee.sarvam_agent_id ?? null }
+        ? {
+            id: employee.id,
+            name: employee.name,
+            sarvamAgentId: employee.sarvam_agent_id ?? null,
+            training: sanitizeAgentTraining(employee.agent_training),
+          }
         : null,
     };
   });
@@ -93,6 +100,15 @@ export default async function AdminPage() {
                     })}
                   </p>
                 </div>
+                {client.employee ? (
+                  <div className="w-full">
+                    <ClientTrainingEditor
+                      employeeId={client.employee.id}
+                      employeeName={client.employee.name}
+                      training={client.employee.training}
+                    />
+                  </div>
+                ) : null}
               </li>
             ))}
           </ul>

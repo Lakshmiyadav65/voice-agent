@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import { BUILT_IN_VARIABLES, keyFromName, type AgentSettings } from "@/lib/voice/agent-settings";
 import type { AgentTest, TestRun } from "@/lib/voice/agent-tests";
+import type { AgentTraining } from "@/lib/voice/agent-training";
 import {
   AgentGlyph,
   BackIcon,
@@ -14,6 +15,7 @@ import {
   SparkleIcon,
   TestsIcon,
   ToolsIcon,
+  TrainingIcon,
   VariablesIcon,
 } from "./icons";
 import { InstructionsSection } from "./InstructionsSection";
@@ -21,11 +23,13 @@ import { SettingsSection } from "./SettingsSection";
 import { GeniePanel, TestChatPanel } from "./SidePanels";
 import { TestsSection } from "./TestsSection";
 import { ToolsSection } from "./ToolsSection";
+import { TrainingSection } from "./TrainingSection";
 import { VariablesSection } from "./VariablesSection";
 
-export type SectionId = "instructions" | "variables" | "tools" | "settings" | "tests";
+export type SectionId = "training" | "instructions" | "variables" | "tools" | "settings" | "tests";
 
 const SECTIONS: { id: SectionId; label: string; icon: ReactNode; blurb: string }[] = [
+  { id: "training", label: "Training", icon: <TrainingIcon />, blurb: "How our team trained your agent in Sarvam." },
   { id: "instructions", label: "Instructions", icon: <InstructionsIcon />, blurb: "What the agent says first and how it handles every call." },
   { id: "variables", label: "Variables", icon: <VariablesIcon />, blurb: "Values filled into the greeting and instructions." },
   { id: "tools", label: "Tools", icon: <ToolsIcon />, blurb: "Actions the agent can take during a call." },
@@ -39,6 +43,8 @@ type Props = {
   initialSettings: AgentSettings;
   initialTests: AgentTest[];
   initialSection: SectionId;
+  // Recorded by staff; shown read-only.
+  training: AgentTraining | null;
 };
 
 /** Problems that would make the server drop part of a save, caught before sending. */
@@ -56,7 +62,7 @@ function findProblem(settings: AgentSettings, tests: AgentTest[]): { section: Se
   return null;
 }
 
-export function AgentBuilder({ agentId, initialName, initialSettings, initialTests, initialSection }: Props) {
+export function AgentBuilder({ agentId, initialName, initialSettings, initialTests, initialSection, training }: Props) {
   const [section, setSection] = useState<SectionId>(initialSection);
   const [panel, setPanelState] = useState<"genie" | "test" | null>("genie");
   // Genie starts open beside the editor on wide screens; on phones it stays hidden until asked for.
@@ -261,7 +267,9 @@ export function AgentBuilder({ agentId, initialName, initialSettings, initialTes
           <div className="mx-auto max-w-3xl">
             <h2 className="text-lg font-semibold text-ink">{meta.label}</h2>
             <p className="mb-6 text-sm text-muted">{meta.blurb}</p>
-            {section === "instructions" ? (
+            {section === "training" ? (
+              <TrainingSection training={training} />
+            ) : section === "instructions" ? (
               <InstructionsSection settings={settings} onChange={edit(setSettings)} />
             ) : section === "variables" ? (
               <VariablesSection settings={settings} onChange={edit(setSettings)} />

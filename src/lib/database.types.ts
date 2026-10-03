@@ -54,6 +54,8 @@ export type AiEmployee = {
   agent_tests: Json;
   // The Sarvam agent staff trained for this employee; null uses the shared default (SARVAM_AGENT_ID).
   sarvam_agent_id: string | null;
+  // What staff trained in Sarvam's console, read through sanitizeAgentTraining; null until recorded.
+  agent_training: Json | null;
   created_at: string;
   updated_at: string;
 };
@@ -292,6 +294,7 @@ export type Database = {
           agent_settings?: Json;
           agent_tests?: Json;
           sarvam_agent_id?: string | null;
+          agent_training?: Json | null;
           created_at?: string;
           updated_at?: string;
         };

@@ -20,6 +20,11 @@ function Icon({ children, ...props }: SVGProps<SVGSVGElement>) {
   );
 }
 
+export const TrainingIcon = () => (
+  <Icon>
+    <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5zM20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z" />
+  </Icon>
+);
 export const InstructionsIcon = () => (
   <Icon>
     <path d="M5 5h14M12 5v14" />

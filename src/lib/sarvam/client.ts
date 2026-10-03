@@ -33,7 +33,7 @@ export interface TriggerLeadCallOptions {
  */
 export async function triggerLeadCall(
   options: TriggerLeadCallOptions
-): Promise<{ success: boolean; attemptId?: string; error?: string }> {
+): Promise<{ success: boolean; attemptId?: string; error?: string; droppedVariables?: string[] }> {
   const apiKey = process.env.SARVAM_API_KEY;
   const orgId = process.env.SARVAM_ORG_ID;
   const workspaceId = process.env.SARVAM_WORKSPACE_ID;
@@ -147,7 +147,7 @@ export async function triggerLeadCall(
     }
 
     const result = data as SarvamInstantOutboundResponse;
-    return { success: true, attemptId: result.attempt_id };
+    return { success: true, attemptId: result.attempt_id, droppedVariables: unknown };
   } catch (err: any) {
     return { success: false, error: err.message || "Failed to contact Sarvam Voice Agents API" };
   }

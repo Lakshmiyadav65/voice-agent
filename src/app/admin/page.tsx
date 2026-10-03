@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { AppSectionPage } from "@/components/shell/AppSectionPage";
 import { AddClientForm } from "@/components/trainer/AddClientForm";
+import { CallProblemsPanel } from "@/components/trainer/CallAlerts";
 import { ClientAgentField } from "@/components/trainer/ClientAgentField";
 import { ClientTrainingEditor } from "@/components/trainer/ClientTrainingEditor";
 import { requireTrainerAccess } from "@/lib/auth/session";
@@ -124,6 +125,8 @@ export default async function AdminPage() {
           <p className="text-sm text-muted">No clients yet. Add your first one above.</p>
         )}
       </section>
+
+      <CallProblemsPanel />
     </AppSectionPage>
   );
 }

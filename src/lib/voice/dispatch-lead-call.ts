@@ -29,7 +29,14 @@ export type DispatchLeadCallOptions = {
 };
 
 export type DispatchLeadCallResult =
-  | { success: true; attemptId?: string; businessName: string; openingMessage: string }
+  | {
+      success: true;
+      attemptId?: string;
+      businessName: string;
+      openingMessage: string;
+      // Values the Sarvam agent did not define, so the call went out without them.
+      droppedVariables: string[];
+    }
   | { success: false; error: string };
 
 export type ResolvedContext = {
@@ -256,6 +263,7 @@ export async function dispatchLeadCall(
   return {
     success: true,
     attemptId: result.attemptId,
+    droppedVariables: result.droppedVariables ?? [],
     businessName: context.businessName,
     openingMessage,
   };

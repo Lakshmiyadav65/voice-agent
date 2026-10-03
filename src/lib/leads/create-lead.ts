@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { canPlaceCall } from "@/lib/billing/credits";
 import type { Database } from "@/lib/database.types";
 import type { Attribution } from "@/lib/leads/attribution";
+import { recordCallFailure } from "@/lib/voice/call-failures";
 import { dispatchLeadCall } from "@/lib/voice/dispatch-lead-call";
 
 type AdminClient = SupabaseClient<Database>;
@@ -137,9 +138,22 @@ export async function placeCallForLead(
   supabase: AdminClient,
   target: CallTarget
 ): Promise<{ ok: true; attemptId: string } | { ok: false; error: string }> {
+  const failed = async (error: string) => {
+    // Callers don't surface this (the hosted form only says whether a call was placed), so
+    // log it and record it for the staff alerts in /admin.
+    console.error("[Lead call] Could not call lead", target.leadId, error);
+    await recordCallFailure(supabase, {
+      businessId: target.businessId,
+      aiEmployeeId: target.aiEmployeeId,
+      leadId: target.leadId,
+      error,
+    });
+    return { ok: false as const, error };
+  };
+
   // Out of credit is not the lead's fault: leave it "new" so the owner can still call by hand.
   const allowed = await canPlaceCall(supabase, target.businessId);
-  if (!allowed.ok) return allowed;
+  if (!allowed.ok) return failed(allowed.error);
 
   const result = await dispatchLeadCall({
     aiEmployeeId: target.aiEmployeeId,
@@ -151,20 +165,26 @@ export async function placeCallForLead(
   });
 
   if (!result.success || !result.attemptId) {
-    const error = result.success ? "No call id returned" : result.error;
-    // Callers don't surface this (the hosted form only says whether a call was placed), so log it.
-    console.error("[Lead call] Could not call lead", target.leadId, error);
     // No call was placed (e.g. the voice account is out of balance), so the lead keeps its status:
     // "unreachable" would tell the owner the customer did not answer. They can still call by hand.
-    return { ok: false, error };
+    return failed(result.success ? "No call id returned" : result.error);
   }
 
-  await supabase.from("call_attempts").insert({
-    lead_id: target.leadId,
-    business_id: target.businessId,
-    attempt_id: result.attemptId,
-    status: "dispatched",
-  });
+  const { data: attempt } = await supabase
+    .from("call_attempts")
+    .insert({
+      lead_id: target.leadId,
+      business_id: target.businessId,
+      attempt_id: result.attemptId,
+      status: "dispatched",
+    })
+    .select("id")
+    .single();
+  // Written apart from the insert so a database without the phase 16 column still records
+  // the attempt, which the webhook needs to save the call's results.
+  if (attempt && result.droppedVariables.length) {
+    await supabase.from("call_attempts").update({ dropped_variables: result.droppedVariables }).eq("id", attempt.id);
+  }
   await supabase.from("leads").update({ status: "calling" }).eq("id", target.leadId);
   return { ok: true, attemptId: result.attemptId };
 }

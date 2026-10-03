@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/shell/AppShell";
+import { CallAlertBanner } from "@/components/trainer/CallAlerts";
 import { requireTrainerAccess } from "@/lib/auth/session";
 import { trainerNav } from "@/lib/navigation";
 
@@ -19,6 +20,7 @@ export default async function AdminLayout({
       homeHref="/trainer"
       userLabel={session.profile.full_name ?? session.email}
     >
+      <CallAlertBanner />
       {children}
     </AppShell>
   );

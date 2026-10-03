@@ -109,6 +109,17 @@ export type CallTranscriptTurn = {
   en_text: string;
 };
 
+// A lead's call that never went out (phase 16); see src/lib/voice/call-failures.ts for the reasons.
+export type CallFailure = {
+  id: string;
+  business_id: string;
+  ai_employee_id: string | null;
+  lead_id: string | null;
+  reason: "no_credits" | "no_balance" | "agent" | "number" | "auth" | "settings" | "network" | "other";
+  message: string;
+  created_at: string;
+};
+
 export type CallAttempt = {
   id: string;
   lead_id: string;
@@ -130,6 +141,8 @@ export type CallAttempt = {
   captured: CapturedValue[];
   billed_minutes: number | null;
   charge_paise: number | null;
+  // Values Sarvam's agent did not define, so the call went out without them (phase 16).
+  dropped_variables: string[];
   created_at: string;
   updated_at: string;
 };
@@ -378,10 +391,25 @@ export type Database = {
           unanswered_questions?: string[];
           topics?: string[];
           captured?: CapturedValue[];
+          dropped_variables?: string[];
           created_at?: string;
           updated_at?: string;
         };
         Update: Partial<CallAttempt>;
+        Relationships: [];
+      };
+      call_failures: {
+        Row: CallFailure;
+        Insert: {
+          id?: string;
+          business_id: string;
+          ai_employee_id?: string | null;
+          lead_id?: string | null;
+          reason: CallFailure["reason"];
+          message: string;
+          created_at?: string;
+        };
+        Update: Partial<CallFailure>;
         Relationships: [];
       };
       delivery_targets: {

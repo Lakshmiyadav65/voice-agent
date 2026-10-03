@@ -111,6 +111,11 @@ export default async function AdminPage() {
                 {client.employee ? (
                   <div className="w-full space-y-1">
                     <p className="text-sm">
+                      {/* A plain link: a route handler sets the staff view, then opens the dashboard. */}
+                      <a href={`/api/trainer/view?businessId=${client.id}`} className="font-semibold text-accent hover:underline">
+                        View dashboard
+                      </a>
+                      <span className="text-muted"> · </span>
                       <Link
                         href={`/trainer/knowledge?employee=${client.employee.id}`}
                         className="font-semibold text-accent hover:underline"

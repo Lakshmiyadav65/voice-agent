@@ -1,4 +1,6 @@
+import { getStaffViewBusinessId } from "@/lib/auth/session";
 import type { AiEmployee, Business } from "@/lib/database.types";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export type OwnerWorkspace = {
@@ -7,13 +9,18 @@ export type OwnerWorkspace = {
   primaryBusiness: Business | null;
 };
 
+const EMPTY: OwnerWorkspace = { businesses: [], aiEmployees: [], primaryBusiness: null };
+
+/**
+ * The business the dashboard shows: the owner's own, or for staff viewing a client's
+ * dashboard (see staff-view.ts), that client's.
+ */
 export async function getOwnerWorkspace(userId: string): Promise<OwnerWorkspace> {
+  const viewing = await getStaffViewBusinessId();
+  if (viewing) return getBusinessWorkspace(viewing);
+
   const supabase = await createClient();
-  const empty: OwnerWorkspace = {
-    businesses: [],
-    aiEmployees: [],
-    primaryBusiness: null,
-  };
+  const empty = EMPTY;
 
   if (!supabase) return empty;
 
@@ -38,6 +45,18 @@ export async function getOwnerWorkspace(userId: string): Promise<OwnerWorkspace>
     aiEmployees: aiEmployees ?? [],
     primaryBusiness,
   };
+}
+
+/** One business and its AI employees, for staff viewing that client's dashboard. */
+async function getBusinessWorkspace(businessId: string): Promise<OwnerWorkspace> {
+  const supabase = createAdminClient();
+  if (!supabase) return EMPTY;
+  const [{ data: business }, { data: aiEmployees }] = await Promise.all([
+    supabase.from("businesses").select("*").eq("id", businessId).maybeSingle(),
+    supabase.from("ai_employees").select("*").eq("business_id", businessId),
+  ]);
+  if (!business) return EMPTY;
+  return { businesses: [business], aiEmployees: aiEmployees ?? [], primaryBusiness: business };
 }
 
 export async function getTrainerOverview() {

@@ -1,7 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { canAccessDashboard, canAccessTrainerConsole } from "@/lib/auth/roles";
+import { canAccessDashboard, canAccessTrainerConsole, isPlatformStaff } from "@/lib/auth/roles";
+import { parseStaffViewCookie, STAFF_VIEW_COOKIE } from "@/lib/auth/staff-view";
 import type { PlatformRole } from "@/lib/database.types";
 
 export async function updateSession(request: NextRequest) {
@@ -68,7 +69,9 @@ export async function updateSession(request: NextRequest) {
       .maybeSingle();
 
     const role = (profile?.platform_role ?? "business_owner") as PlatformRole;
-    if (!canAccessDashboard(role)) {
+    // Staff viewing a client's dashboard pass; the pages check the cookie belongs to staff.
+    const staffViewing = isPlatformStaff(role) && Boolean(parseStaffViewCookie(request.cookies.get(STAFF_VIEW_COOKIE)?.value));
+    if (!canAccessDashboard(role) && !staffViewing) {
       const trainerUrl = request.nextUrl.clone();
       trainerUrl.pathname = "/trainer";
       return NextResponse.redirect(trainerUrl);

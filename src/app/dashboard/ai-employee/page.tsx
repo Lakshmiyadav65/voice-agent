@@ -1,56 +1,13 @@
 import { requireDashboardAccess } from "@/lib/auth/session";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import type { AiEmployee, Business } from "@/lib/database.types";
+import { getOwnerWorkspace } from "@/lib/data/workspace";
 import { AiEmployeeManager } from "@/components/employee/AiEmployeeManager";
 
 export default async function AiEmployeePage() {
   const session = await requireDashboardAccess();
-  const supabase = (await createClient()) || createAdminClient();
-
-  let business: Business | null = null;
-  let employees: AiEmployee[] = [];
-
-  if (supabase) {
-    // 1. Get user's business membership
-    const { data: membership } = await supabase
-      .from("business_members")
-      .select("business_id")
-      .eq("user_id", session.userId)
-      .limit(1)
-      .maybeSingle();
-
-    let businessId = membership?.business_id;
-
-    // Fallback for platform admins/trainers without direct membership: fetch first active business
-    if (!businessId) {
-      const { data: firstBiz } = await supabase
-        .from("businesses")
-        .select("*")
-        .limit(1)
-        .maybeSingle();
-      business = firstBiz;
-      businessId = firstBiz?.id;
-    } else {
-      const { data: bizData } = await supabase
-        .from("businesses")
-        .select("*")
-        .eq("id", businessId)
-        .maybeSingle();
-      business = bizData;
-    }
-
-    if (businessId) {
-      // 2. Fetch AI employees for this business
-      const { data: empList } = await supabase
-        .from("ai_employees")
-        .select("*")
-        .eq("business_id", businessId)
-        .order("created_at", { ascending: false });
-
-      employees = empList || [];
-    }
-  }
+  // The owner's business, or the one staff are viewing.
+  const workspace = await getOwnerWorkspace(session.userId);
+  const business = workspace.primaryBusiness;
+  const employees = [...workspace.aiEmployees].sort((a, b) => b.created_at.localeCompare(a.created_at));
 
   return (
     <div className="space-y-6">

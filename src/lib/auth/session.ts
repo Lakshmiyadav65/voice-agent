@@ -1,12 +1,15 @@
 import { cache } from "react";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import {
   canAccessDashboard,
   canAccessTrainerConsole,
   homePathForRole,
+  isPlatformStaff,
 } from "@/lib/auth/roles";
+import { parseStaffViewCookie, STAFF_VIEW_COOKIE } from "@/lib/auth/staff-view";
 import type { Profile } from "@/lib/database.types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -48,15 +51,26 @@ export const getSessionContext = cache(async function getSessionContext(): Promi
   };
 });
 
+/**
+ * The business whose dashboard a staff member is viewing, or null. Cached per request.
+ * A client with the cookie gets null: only staff may look at another business.
+ */
+export const getStaffViewBusinessId = cache(async function getStaffViewBusinessId(): Promise<string | null> {
+  const session = await getSessionContext();
+  if (!session || !isPlatformStaff(session.profile.platform_role)) return null;
+  return parseStaffViewCookie((await cookies()).get(STAFF_VIEW_COOKIE)?.value);
+});
+
 export async function requireAuth(): Promise<SessionContext> {
   const session = await getSessionContext();
   if (!session) redirect("/login");
   return session;
 }
 
+/** Business owners, and staff while they are viewing a client's dashboard. */
 export async function requireDashboardAccess(): Promise<SessionContext> {
   const session = await requireAuth();
-  if (!canAccessDashboard(session.profile.platform_role)) {
+  if (!canAccessDashboard(session.profile.platform_role) && !(await getStaffViewBusinessId())) {
     redirect(homePathForRole(session.profile.platform_role));
   }
   return session;

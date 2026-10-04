@@ -20,8 +20,12 @@ port = 54323
 [auth]
 enabled = true
 # Pushed to the live project with `supabase config push`; links in auth emails use site_url.
-site_url = "https://voice-agent-chi-nine.vercel.app"
-additional_redirect_urls = ["https://voice-agent-chi-nine.vercel.app/**", "http://localhost:3000/**"]
+site_url = "https://getaiemployee.vercel.app"
+additional_redirect_urls = [
+  "https://getaiemployee.vercel.app/**",
+  "https://voice-agent-chi-nine.vercel.app/**",
+  "http://localhost:3000/**",
+]
 enable_signup = true
 
 [auth.email]

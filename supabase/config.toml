@@ -11,7 +11,7 @@ max_rows = 1000
 
 [db]
 port = 54322
-major_version = 15
+major_version = 17
 
 [studio]
 enabled = true
@@ -19,10 +19,11 @@ port = 54323
 
 [auth]
 enabled = true
-site_url = "http://localhost:3000"
-additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+# Pushed to the live project with `supabase config push`; links in auth emails use site_url.
+site_url = "https://voice-agent-chi-nine.vercel.app"
+additional_redirect_urls = ["https://voice-agent-chi-nine.vercel.app/**", "http://localhost:3000/**"]
 enable_signup = true
 
 [auth.email]
 enable_signup = true
-enable_confirmations = false
+enable_confirmations = true

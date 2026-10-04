@@ -13,11 +13,11 @@ const input =
  * and lands on /reset-password. Supabase replies the same whether or not the email has
  * an account, so the form cannot be used to find out who is a client.
  */
-export function ForgotPasswordForm() {
+export function ForgotPasswordForm({ initialError = null }: { initialError?: string | null }) {
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

@@ -60,10 +60,8 @@ async function main() {
       userIds[user.email] = found.id;
       await admin.auth.admin.updateUserById(found.id, {
         password: user.password,
-        user_metadata: {
-          full_name: user.fullName,
-          platform_role: user.platformRole,
-        },
+        user_metadata: { full_name: user.fullName },
+        app_metadata: { platform_role: user.platformRole },
       });
       await admin
         .from("profiles")
@@ -80,10 +78,9 @@ async function main() {
       email: user.email,
       password: user.password,
       email_confirm: true,
-      user_metadata: {
-        full_name: user.fullName,
-        platform_role: user.platformRole,
-      },
+      user_metadata: { full_name: user.fullName },
+      // app_metadata, not user_metadata: the new-user trigger only trusts what the service role sets.
+      app_metadata: { platform_role: user.platformRole },
     });
 
     if (error || !data.user) {

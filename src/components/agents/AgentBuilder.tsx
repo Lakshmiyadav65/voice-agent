@@ -29,7 +29,7 @@ import { VariablesSection } from "./VariablesSection";
 export type SectionId = "training" | "instructions" | "variables" | "tools" | "settings" | "tests";
 
 const SECTIONS: { id: SectionId; label: string; icon: ReactNode; blurb: string }[] = [
-  { id: "training", label: "Training", icon: <TrainingIcon />, blurb: "How our team trained your agent in Sarvam." },
+  { id: "training", label: "Training", icon: <TrainingIcon />, blurb: "How our team trained your agent." },
   { id: "instructions", label: "Instructions", icon: <InstructionsIcon />, blurb: "What the agent says first and how it handles every call." },
   { id: "variables", label: "Variables", icon: <VariablesIcon />, blurb: "Values filled into the greeting and instructions." },
   { id: "tools", label: "Tools", icon: <ToolsIcon />, blurb: "Actions the agent can take during a call." },

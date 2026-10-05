@@ -4,7 +4,6 @@ import { getSessionContext } from "@/lib/auth/session";
 import { loadManageableCampaign } from "@/lib/campaigns/access";
 import { runCampaignTick } from "@/lib/campaigns/engine";
 import type { Campaign } from "@/lib/database.types";
-import { resolveWebhookUrl } from "@/lib/voice/webhook-url";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -41,8 +40,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
   if (transition.to === "running") {
     // Dial the first batch now instead of waiting up to a minute for the scheduler.
-    const webhookUrl = resolveWebhookUrl(request);
-    after(() => runCampaignTick(supabase, { campaignId: campaign.id, webhookUrl }).then(() => undefined));
+    after(() => runCampaignTick(supabase, { campaignId: campaign.id }).then(() => undefined));
   }
 
   return NextResponse.json({ campaign: updated });

@@ -25,8 +25,7 @@ export default async function TrainerBusinessesPage() {
       <section className="mb-10">
         <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Clients</h2>
         <p className="mt-1 mb-4 text-sm text-muted">
-          Create a client&apos;s login, business and AI employee, then send them the login details. Train their
-          agent in Sarvam first, so you can link it here.
+          Create a client&apos;s login, business and AI employee, then send them the login details.
         </p>
         <AddClientForm />
       </section>

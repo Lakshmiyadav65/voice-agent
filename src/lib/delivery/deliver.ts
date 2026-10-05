@@ -44,7 +44,7 @@ export async function deliverCallResult(supabase: AdminClient, callAttemptId: st
 
   await Promise.all(
     (targets as DeliveryTarget[]).map(async (target) => {
-      // Claim first: a duplicate webhook from Sarvam hits the unique key and sends nothing.
+      // Claim first: a duplicate webhook from the voice provider hits the unique key and sends nothing.
       const { data: claim } = await supabase
         .from("deliveries")
         .insert({ target_id: target.id, business_id: business.id, call_attempt_id: attempt.id })

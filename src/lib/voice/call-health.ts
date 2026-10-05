@@ -12,20 +12,11 @@ export type CallProblem = {
   businessName: string;
   leadName: string | null;
   leadPhone: string | null;
-  // "refused": the call never went out. "not_connected": Sarvam placed it but it failed to connect.
+  // "refused": the call never went out. "not_connected": the provider placed it but it failed to connect.
   kind: "refused" | "not_connected";
   label: string;
   action: string;
   message: string;
-};
-
-export type KnowledgeWarning = {
-  businessId: string;
-  businessName: string;
-  at: string;
-  variables: string[];
-  // business_description was dropped, so the agent never heard the knowledge base.
-  missingKnowledge: boolean;
 };
 
 export type CallHealth = {
@@ -35,7 +26,6 @@ export type CallHealth = {
   // Clients whose calls are failing right now: their latest call never went out, or their
   // last few all failed to connect. A call that goes through again clears them.
   failing: CallProblem[];
-  warnings: KnowledgeWarning[];
 };
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -45,10 +35,10 @@ const NOT_CONNECTED_STREAK = 3;
 const NOT_CONNECTED = {
   label: "Placed, but did not connect",
   action:
-    "One of these is usually the customer's phone (switched off or out of range). If every call does this, check the number and connection in Sarvam's console.",
+    "One of these is usually the customer's phone (switched off or out of range). If every call does this, check the calling number in the voice provider's console.",
 };
 
-/** Everything the staff call alerts show: recent problems, who is failing now, and agents missing values. */
+/** Everything the staff call alerts show: recent problems and who is failing now. */
 export async function loadCallHealth(supabase: AdminClient): Promise<CallHealth> {
   const now = Date.now();
   const weekAgo = new Date(now - 7 * DAY).toISOString();
@@ -96,12 +86,11 @@ export async function loadCallHealth(supabase: AdminClient): Promise<CallHealth>
         ...base(a.business_id, a.lead_id),
         kind: "not_connected" as const,
         ...NOT_CONNECTED,
-        message: a.failure_reason || "Sarvam gave no reason.",
+        message: a.failure_reason || "The voice provider gave no reason.",
       })),
   ].sort((a, b) => b.at.localeCompare(a.at));
 
   const failing: CallProblem[] = [];
-  const warnings: KnowledgeWarning[] = [];
   for (const businessId of new Set([...problems.map((p) => p.businessId), ...recent.map((a) => a.business_id)])) {
     const placed = recent.filter((a) => a.business_id === businessId); // newest first
     const refused = problems.find((p) => p.businessId === businessId && p.kind === "refused");
@@ -115,18 +104,7 @@ export async function loadCallHealth(supabase: AdminClient): Promise<CallHealth>
     } else if (failingToConnect && now - Date.parse(streak[0].created_at) < DAY) {
       failing.push(problems.find((p) => p.id === streak[0].id)!);
     }
-
-    const dropped = lastPlaced?.dropped_variables ?? [];
-    if (dropped.length) {
-      warnings.push({
-        businessId,
-        businessName: nameOf.get(businessId) ?? "Unknown client",
-        at: lastPlaced.created_at,
-        variables: dropped,
-        missingKnowledge: dropped.includes("business_description"),
-      });
-    }
   }
 
-  return { ready: !failuresRes.error, problems: problems.slice(0, 40), failing, warnings };
+  return { ready: !failuresRes.error, problems: problems.slice(0, 40), failing };
 }

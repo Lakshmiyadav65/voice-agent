@@ -13,7 +13,7 @@ type PageProps = { params: Promise<{ id: string }> };
 const STATUS_LABEL: Record<string, string> = { draft: "Being set up", testing: "Testing", live: "Live", paused: "Paused" };
 
 /**
- * An agent as its owner sees it. Its behaviour is set only in Sarvam's console, so
+ * An agent as its owner sees it. Its behaviour is set only in the voice provider's console, so
  * the page shows how our team trained it, read-only, and points to the one thing
  * the owner changes: the knowledge base.
  */

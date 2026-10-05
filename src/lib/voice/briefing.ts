@@ -6,7 +6,7 @@ import type { CallBrief } from "@/lib/voice/dispatch-lead-call";
  * take the agent's briefing through a single prompt variable. The instructions
  * are filled again without the knowledge, so a {{business_description}} in the
  * owner's text does not paste the knowledge in twice. Language rules are left
- * out when the agent's own language setup in Sarvam should stand.
+ * out when the agent's own language setup in the provider's console should stand.
  */
 export function composeBriefing(brief: CallBrief, instructions: string, withLanguageRules = true): string {
   const sections: string[] = [];

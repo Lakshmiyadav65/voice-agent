@@ -56,7 +56,7 @@ async function finishIfDone(supabase: AdminClient, campaignId: string) {
   }
 }
 
-/** Called from the Sarvam webhook once a campaign contact's call has a result. */
+/** Called from the voice provider's webhook once a campaign contact's call has a result. */
 export async function onCampaignCallFinished(supabase: AdminClient, leadId: string, callStatus: string) {
   const { data: contact } = await supabase
     .from("campaign_contacts")
@@ -84,8 +84,7 @@ async function dialContact(
   supabase: AdminClient,
   campaign: Campaign,
   aiEmployeeId: string | null,
-  contact: CampaignContact,
-  webhookUrl: string | undefined
+  contact: CampaignContact
 ): Promise<{ ok: boolean; error?: string; leadId?: string }> {
   if (contact.lead_id) {
     const result = await placeCallForLead(supabase, {
@@ -95,7 +94,6 @@ async function dialContact(
       name: contact.name,
       phone: contact.phone,
       enquiry: contact.notes,
-      webhookUrl,
     });
     return result.ok ? { ok: true, leadId: contact.lead_id } : { ok: false, error: result.error, leadId: contact.lead_id };
   }
@@ -109,13 +107,12 @@ async function dialContact(
     source: "campaign",
     utm: { utm_source: "campaign", utm_medium: "outbound", utm_campaign: campaign.name.slice(0, 200) },
     externalId: `campaign:${contact.id}`,
-    webhookUrl,
   });
   if (!result.ok) return { ok: false, error: result.error };
   return result.called ? { ok: true, leadId: result.leadId } : { ok: false, error: "Call could not be placed", leadId: result.leadId };
 }
 
-async function tickCampaign(supabase: AdminClient, campaign: Campaign, webhookUrl: string | undefined) {
+async function tickCampaign(supabase: AdminClient, campaign: Campaign) {
   const now = new Date();
 
   // Release slots held by calls that never reported back, counting them as unanswered.
@@ -186,7 +183,7 @@ async function tickCampaign(supabase: AdminClient, campaign: Campaign, webhookUr
       .maybeSingle<CampaignContact>();
     if (!claimed) continue;
 
-    const result = await dialContact(supabase, campaign, aiEmployeeId, claimed, webhookUrl);
+    const result = await dialContact(supabase, campaign, aiEmployeeId, claimed);
     if (result.ok) {
       dialled++;
       if (result.leadId && !claimed.lead_id) {
@@ -211,7 +208,7 @@ async function tickCampaign(supabase: AdminClient, campaign: Campaign, webhookUr
 /** One scheduler pass over every running campaign (or just one, when an owner presses Start). */
 export async function runCampaignTick(
   supabase: AdminClient,
-  options: { campaignId?: string; webhookUrl?: string } = {}
+  options: { campaignId?: string } = {}
 ) {
   let query = supabase.from("campaigns").select("*").eq("status", "running");
   if (options.campaignId) query = query.eq("id", options.campaignId);
@@ -220,7 +217,7 @@ export async function runCampaignTick(
   const results = [];
   for (const campaign of (campaigns as Campaign[] | null) ?? []) {
     try {
-      results.push(await tickCampaign(supabase, campaign, options.webhookUrl));
+      results.push(await tickCampaign(supabase, campaign));
     } catch (err) {
       console.error("[Campaigns] Tick failed for", campaign.id, err);
       results.push({ campaignId: campaign.id, dialled: 0, reason: "error" });

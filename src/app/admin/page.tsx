@@ -3,7 +3,6 @@ import Link from "next/link";
 import { AppSectionPage } from "@/components/shell/AppSectionPage";
 import { AddClientForm } from "@/components/trainer/AddClientForm";
 import { CallProblemsPanel } from "@/components/trainer/CallAlerts";
-import { ClientAgentField } from "@/components/trainer/ClientAgentField";
 import { ClientTrainingEditor } from "@/components/trainer/ClientTrainingEditor";
 import { ResetClientPassword } from "@/components/trainer/ResetClientPassword";
 import { requireTrainerAccess } from "@/lib/auth/session";
@@ -22,7 +21,7 @@ type ClientRow = {
   name: string;
   createdAt: string;
   owners: { id: string; email: string }[];
-  employee: { id: string; name: string; sarvamAgentId: string | null; training: AgentTraining | null } | null;
+  employee: { id: string; name: string; training: AgentTraining | null } | null;
 };
 
 async function loadClients(): Promise<ClientRow[]> {
@@ -34,7 +33,7 @@ async function loadClients(): Promise<ClientRow[]> {
     supabase.from("businesses").select("id, name, created_at").order("created_at", { ascending: false }),
     supabase.from("business_members").select("business_id, user_id").eq("role", "owner"),
     supabase.from("profiles").select("id, email"),
-    // "*" rather than naming sarvam_agent_id or agent_training, so the page still loads before phases 14 and 15.
+    // "*" rather than naming agent_training, so the page still loads before phase 15.
     supabase.from("ai_employees").select("*").order("created_at", { ascending: true }),
   ]);
 
@@ -51,7 +50,6 @@ async function loadClients(): Promise<ClientRow[]> {
         ? {
             id: employee.id,
             name: employee.name,
-            sarvamAgentId: employee.sarvam_agent_id ?? null,
             training: sanitizeAgentTraining(employee.agent_training),
           }
         : null,
@@ -90,11 +88,7 @@ export default async function AdminPage() {
                 </div>
                 <div className="text-right text-sm">
                   {client.employee ? (
-                    <ClientAgentField
-                      employeeId={client.employee.id}
-                      employeeName={client.employee.name}
-                      sarvamAgentId={client.employee.sarvamAgentId}
-                    />
+                    <p className="font-medium text-foreground">{client.employee.name}</p>
                   ) : (
                     <p className="text-foreground">No agent yet</p>
                   )}

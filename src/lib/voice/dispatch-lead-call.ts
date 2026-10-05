@@ -1,6 +1,4 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { triggerLeadCall } from "@/lib/sarvam/client";
-import { toSarvamVariables } from "@/lib/sarvam/agent-settings";
 import {
   DEFAULT_AGENT_SETTINGS,
   effectiveInstructions,
@@ -13,9 +11,8 @@ import {
 import { captureBriefing, sanitizeCaptureFields } from "@/lib/voice/capture-fields";
 import { localizeGreeting } from "@/lib/voice/localize-greeting";
 
-// How much knowledge one call carries. Sarvam's API accepts far more (120,000 characters
-// tested 2026-10-03); the limit is about how well, and how fast, the agent uses a long
-// prompt, so it can be tuned from the environment while real calls are compared.
+// How much knowledge one call carries. The limit is about how well, and how fast, the
+// agent uses a long prompt, so it can be tuned from the environment while real calls are compared.
 const KNOWLEDGE_CHAR_LIMIT = Number(process.env.KNOWLEDGE_CHAR_LIMIT) || 7500;
 
 export type DispatchLeadCallOptions = {
@@ -24,11 +21,7 @@ export type DispatchLeadCallOptions = {
   phoneNumber: string;
   reason?: string;
   initialBotMessage?: string;
-  initialStateName?: string;
   leadId?: string;
-  agentVariables?: Record<string, any>;
-  webhookUrl?: string;
-  triggeredBy?: string;
 };
 
 export type DispatchLeadCallResult =
@@ -37,14 +30,10 @@ export type DispatchLeadCallResult =
       attemptId?: string;
       businessName: string;
       openingMessage: string;
-      // Values the Sarvam agent did not define, so the call went out without them.
-      droppedVariables: string[];
     }
   | { success: false; error: string };
 
 export type ResolvedContext = {
-  /** The client's own Sarvam agent, trained by staff in Sarvam's console; null uses SARVAM_AGENT_ID. */
-  sarvamAgentId: string | null;
   businessName: string;
   businessType: string;
   employeeName: string;
@@ -104,12 +93,11 @@ export function bundleKnowledge(
 }
 
 /**
- * Sarvam receives business facts as a single prose blob, so knowledge documents
- * are flattened rather than passed as structured records.
+ * The business, its settings and its knowledge flattened into one block, since a
+ * voice agent takes business facts as prose rather than structured records.
  */
 export async function resolveEmployeeContext(aiEmployeeId?: string | null): Promise<ResolvedContext> {
   const context: ResolvedContext = {
-    sarvamAgentId: null,
     businessName: "Our Business",
     businessType: "Consumer & Commercial Services",
     employeeName: "Voice Agent",
@@ -133,8 +121,6 @@ export async function resolveEmployeeContext(aiEmployeeId?: string | null): Prom
   if (!employee) return context;
 
   context.employeeName = employee.name;
-  // Absent until the phase 14 migration is applied; calls then use the shared agent.
-  context.sarvamAgentId = employee.sarvam_agent_id ?? null;
   context.captureBriefing = captureBriefing(sanitizeCaptureFields(employee.capture_fields));
   context.settings = sanitizeAgentSettings(employee.agent_settings);
 
@@ -239,65 +225,22 @@ export async function prepareCallBrief(
   return { ...brief, greeting: await localizeGreeting(brief.greeting, context.settings.startingLanguage) };
 }
 
+/**
+ * Why no call goes out. Sarvam was removed on 2026-10-05 and Cartesia is not connected
+ * yet, so every lead is saved, recorded as a call failure for the staff alerts, and left
+ * "new" for the owner to call by hand.
+ */
+export const NO_VOICE_PROVIDER =
+  "No voice provider is connected yet, so no call was placed. Calls start once Cartesia is set up.";
+
 export async function dispatchLeadCall(
   options: DispatchLeadCallOptions
 ): Promise<DispatchLeadCallResult> {
-  const customerName = options.customerName?.trim() || "Valued Customer";
-
   if (!options.phoneNumber) {
     return { success: false, error: "Phone number is required to place a voice call." };
   }
 
-  const context = await resolveEmployeeContext(options.aiEmployeeId);
-
-  const brief = await prepareCallBrief(
-    context,
-    { name: customerName, phone: options.phoneNumber, reason: options.reason },
-    options.initialBotMessage
-  );
-  const openingMessage = brief.greeting;
-
-  const result = await placeSarvamCall(options, context, brief, customerName);
-
-  if (!result.success) {
-    return { success: false, error: result.error || "Failed to trigger voice call" };
-  }
-
-  return {
-    success: true,
-    attemptId: result.attemptId,
-    droppedVariables: result.droppedVariables ?? [],
-    businessName: context.businessName,
-    openingMessage,
-  };
-}
-
-async function placeSarvamCall(
-  options: DispatchLeadCallOptions,
-  context: ResolvedContext,
-  brief: CallBrief,
-  customerName: string
-) {
-  return triggerLeadCall({
-    agentId: context.sarvamAgentId ?? undefined,
-    customerName,
-    phoneNumber: options.phoneNumber,
-    reason: options.reason,
-    agentVariables: {
-      ...toSarvamVariables(brief),
-      ...(options.agentVariables || {}),
-    },
-    // The agent's own greeting and language from Sarvam's console, unless this call asks for a greeting.
-    initialBotMessage: options.initialBotMessage ? brief.greeting : undefined,
-    initialStateName: options.initialStateName,
-    webhookUrl: options.webhookUrl,
-    metadata: {
-      ...(options.leadId ? { lead_id: options.leadId } : {}),
-      ...(options.triggeredBy ? { triggered_by: options.triggeredBy } : {}),
-      // Echoed back by Sarvam so the webhook can reject forged posts.
-      ...(process.env.SARVAM_WEBHOOK_SECRET
-        ? { webhook_secret: process.env.SARVAM_WEBHOOK_SECRET }
-        : {}),
-    },
-  });
+  // The provider takes the brief from prepareCallBrief(resolveEmployeeContext(...)) and
+  // returns its call id; its webhook hands results to recordCallResult in call-result.ts.
+  return { success: false, error: NO_VOICE_PROVIDER };
 }

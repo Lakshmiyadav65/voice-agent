@@ -9,8 +9,8 @@ import { draftAgentFromDescription } from "@/lib/voice/agent-simulation";
 
 /**
  * Creates an agent, either blank ("Create from scratch") or drafted from a one-line description.
- * Retired: staff create each client's agent when adding the client and train it in Sarvam's
- * console, so owners can no longer add one.
+ * Retired: staff create each client's agent when adding the client and train it in the
+ * voice provider's console, so owners can no longer add one.
  */
 export async function POST(request: Request) {
   const session = await getSessionContext();

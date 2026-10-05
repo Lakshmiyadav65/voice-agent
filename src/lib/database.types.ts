@@ -52,9 +52,7 @@ export type AiEmployee = {
   // Provider-neutral; read through sanitizeAgentSettings, which fills defaults.
   agent_settings: Json;
   agent_tests: Json;
-  // The Sarvam agent staff trained for this employee; null uses the shared default (SARVAM_AGENT_ID).
-  sarvam_agent_id: string | null;
-  // What staff trained in Sarvam's console, read through sanitizeAgentTraining; null until recorded.
+  // What staff trained in the voice provider's console, read through sanitizeAgentTraining; null until recorded.
   agent_training: Json | null;
   created_at: string;
   updated_at: string;
@@ -141,8 +139,6 @@ export type CallAttempt = {
   captured: CapturedValue[];
   billed_minutes: number | null;
   charge_paise: number | null;
-  // Values Sarvam's agent did not define, so the call went out without them (phase 16).
-  dropped_variables: string[];
   created_at: string;
   updated_at: string;
 };
@@ -306,7 +302,6 @@ export type Database = {
           capture_fields?: CaptureField[];
           agent_settings?: Json;
           agent_tests?: Json;
-          sarvam_agent_id?: string | null;
           agent_training?: Json | null;
           created_at?: string;
           updated_at?: string;
@@ -391,7 +386,6 @@ export type Database = {
           unanswered_questions?: string[];
           topics?: string[];
           captured?: CapturedValue[];
-          dropped_variables?: string[];
           created_at?: string;
           updated_at?: string;
         };

@@ -12,7 +12,7 @@ type Props = {
 export const input =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-ink outline-hidden focus:border-accent";
 
-// No platform setting reaches a call any more: agents are set up in Sarvam's console.
+// No platform setting reaches a call any more: agents are set up in the voice provider's console.
 export function LiveBadge({ setting }: { setting: keyof AgentSettings }) {
   void setting;
   return null;

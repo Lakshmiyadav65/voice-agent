@@ -132,7 +132,7 @@ export function AiEmployeeManager({
       {/* Main Flow */}
       {selectedEmployee ? (
         <div className="space-y-6">
-          {/* Workflow Tabs: Speak, Documents, What to Find Out. Voice and behaviour are set in Sarvam's console. */}
+          {/* Workflow Tabs: Speak, Documents, What to Find Out. Voice and behaviour are set in the voice provider's console. */}
           <div className="flex flex-wrap items-center gap-2 border-b border-border pb-1">
             <button
               type="button"

@@ -17,8 +17,7 @@ function shareText({ loginUrl, email, password }: Created, businessName: string)
 }
 
 /**
- * Staff create a client's login, business and AI employee in one go, linked to
- * the agent they trained in Sarvam, then copy the login details to send to the
+ * Staff create a client's login, business and AI employee in one go, then copy the login details to send to the
  * client (WhatsApp, email...).
  */
 export function AddClientForm({ startOpen = false }: { startOpen?: boolean }) {
@@ -29,7 +28,6 @@ export function AddClientForm({ startOpen = false }: { startOpen?: boolean }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [agentName, setAgentName] = useState("");
-  const [sarvamAgentId, setSarvamAgentId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [created, setCreated] = useState<Created | null>(null);
@@ -41,7 +39,6 @@ export function AddClientForm({ startOpen = false }: { startOpen?: boolean }) {
     setEmail("");
     setPassword(generatePassword());
     setAgentName("");
-    setSarvamAgentId("");
     setError("");
     setCreated(null);
     setCopied(false);
@@ -65,7 +62,6 @@ export function AddClientForm({ startOpen = false }: { startOpen?: boolean }) {
           email,
           password: finalPassword,
           agentName,
-          sarvamAgentId: sarvamAgentId.trim() || null,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -168,16 +164,6 @@ export function AddClientForm({ startOpen = false }: { startOpen?: boolean }) {
             onChange={(e) => setAgentName(e.target.value)}
             className={`${input} mt-1`}
           />
-        </label>
-        <label className={label}>
-          Sarvam agent ID
-          <input
-            value={sarvamAgentId}
-            placeholder="Leave blank for the shared agent"
-            onChange={(e) => setSarvamAgentId(e.target.value)}
-            className={`${input} mt-1 font-mono`}
-          />
-          <span className="mt-1 block text-xs text-muted">From the agent you trained for this client in Sarvam&apos;s console.</span>
         </label>
       </div>
       {error ? <p className="text-sm text-warn">{error}</p> : null}

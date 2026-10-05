@@ -3,7 +3,6 @@ import { after, NextResponse } from "next/server";
 import { getMetaConfig, signatureMatches } from "@/lib/meta/graph";
 import { processLeadgen, type LeadgenChange } from "@/lib/meta/process-lead";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveWebhookUrl } from "@/lib/voice/webhook-url";
 
 /** Meta calls this once when the webhook is set up, to prove we own the URL. */
 export async function GET(request: Request) {
@@ -49,12 +48,11 @@ export async function POST(request: Request) {
 
   const supabase = createAdminClient();
   if (changes.length && supabase) {
-    const webhookUrl = resolveWebhookUrl(request);
     // Meta retries anything not acknowledged quickly, so fetch and call after replying.
     after(async () => {
       for (const change of changes) {
         try {
-          await processLeadgen(supabase, config, change, webhookUrl);
+          await processLeadgen(supabase, config, change);
         } catch (err) {
           console.error("[Meta leads] Failed to process", change.leadgen_id, err);
         }

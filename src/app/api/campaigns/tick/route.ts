@@ -4,7 +4,6 @@ import { NextResponse } from "next/server";
 
 import { runCampaignTick } from "@/lib/campaigns/engine";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveWebhookUrl } from "@/lib/voice/webhook-url";
 
 // Each tick dials real phones, so only the scheduler may trigger it. Vercel Cron
 // sends "Authorization: Bearer $CRON_SECRET" automatically when the env var is set.
@@ -23,6 +22,6 @@ export async function GET(request: Request) {
   const supabase = createAdminClient();
   if (!supabase) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
-  const results = await runCampaignTick(supabase, { webhookUrl: resolveWebhookUrl(request) });
+  const results = await runCampaignTick(supabase);
   return NextResponse.json({ ran: results.length, results });
 }

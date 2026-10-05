@@ -9,7 +9,7 @@ import { formatTrainingDate, TRAINING_LIMITS, type AgentTraining } from "@/lib/v
 type Props = { employeeId: string; employeeName: string; training: AgentTraining | null };
 
 /**
- * Where staff record what they trained for a client in Sarvam's console. The
+ * Where staff record what they trained for a client in the voice provider's console. The
  * client reads the same record, read-only, on their agent page.
  */
 export function ClientTrainingEditor({ employeeId, employeeName, training }: Props) {
@@ -78,7 +78,7 @@ export function ClientTrainingEditor({ employeeId, employeeName, training }: Pro
   return (
     <form onSubmit={save} className="mt-2 space-y-3 rounded-xl border border-border bg-background p-4">
       <p className="text-sm text-muted">
-        Copy what you set for <span className="font-semibold text-ink">{employeeName}</span> in Sarvam&apos;s console. The
+        Copy what you set for <span className="font-semibold text-ink">{employeeName}</span> in the voice provider&apos;s console. The
         client sees this on their agent page but cannot change it. It does not change the calls.
       </p>
       <div className="grid gap-3 sm:grid-cols-3">
@@ -125,7 +125,7 @@ export function ClientTrainingEditor({ employeeId, employeeName, training }: Pro
             value={prompt}
             rows={12}
             maxLength={TRAINING_LIMITS.prompt}
-            placeholder="Paste the agent's prompt from Sarvam"
+            placeholder="Paste the agent's prompt from the voice provider's console"
             onChange={(e) => setPrompt(e.target.value)}
             className={`${input} mt-1 font-mono text-[13px] leading-relaxed`}
           />

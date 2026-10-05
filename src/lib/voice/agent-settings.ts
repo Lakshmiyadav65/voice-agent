@@ -1,7 +1,7 @@
 /**
  * How an AI employee sounds and behaves on a call. This is our own shape, not
  * any provider's: the editor, the API and the call dispatcher share it, and each
- * voice provider maps whatever it supports (see src/lib/sarvam/agent-settings.ts).
+ * voice provider maps whatever it supports in its own module.
  * Switching providers means writing a new mapping, never migrating these settings.
  */
 

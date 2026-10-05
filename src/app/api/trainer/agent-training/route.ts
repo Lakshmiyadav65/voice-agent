@@ -8,7 +8,7 @@ import { applyTrainingEdit, sanitizeAgentTraining } from "@/lib/voice/agent-trai
 const NEEDS_MIGRATION = "Apply the phase 15 database migration first (supabase db push), then try again.";
 
 /**
- * Records what staff trained for a client's agent in Sarvam's console, so the
+ * Records what staff trained for a client's agent in the voice provider's console, so the
  * client can read it on their agent page. Staff only: clients see it, never edit it.
  */
 export async function PUT(request: Request) {

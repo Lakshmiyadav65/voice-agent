@@ -4,7 +4,7 @@ import type { Database, MetaPageConnection } from "@/lib/database.types";
 import { sanitizeAttribution } from "@/lib/leads/attribution";
 import { createLeadAndCall } from "@/lib/leads/create-lead";
 import { fetchLead, mapLeadFields, type MetaConfig } from "@/lib/meta/graph";
-import { formatE164PhoneNumber } from "@/lib/sarvam/client";
+import { formatE164PhoneNumber } from "@/lib/phone";
 
 type AdminClient = SupabaseClient<Database>;
 
@@ -26,8 +26,7 @@ async function noteError(supabase: AdminClient, connectionId: string, message: s
 export async function processLeadgen(
   supabase: AdminClient,
   config: MetaConfig,
-  change: LeadgenChange,
-  webhookUrl: string | undefined
+  change: LeadgenChange
 ) {
   if (!change.leadgen_id || !change.page_id) return;
 
@@ -77,7 +76,6 @@ export async function processLeadgen(
       utm_content: lead.ad_name,
     }),
     externalId: `meta:${change.leadgen_id}`,
-    webhookUrl,
   });
 
   if (!result.ok) {

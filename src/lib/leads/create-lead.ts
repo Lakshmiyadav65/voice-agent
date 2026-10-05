@@ -21,7 +21,6 @@ export type NewLead = {
   ipHash?: string | null;
   /** Platform id (e.g. a Meta leadgen id) so a redelivered lead is not called twice. */
   externalId?: string | null;
-  webhookUrl?: string;
 };
 
 export type CreateLeadResult =
@@ -115,7 +114,6 @@ export async function createLeadAndCall(
     name: input.name,
     phone: input.phone,
     enquiry: input.enquiry,
-    webhookUrl: input.webhookUrl,
   });
   return { ok: true, leadId: lead.id, called: called.ok };
 }
@@ -127,7 +125,6 @@ export type CallTarget = {
   name: string;
   phone: string;
   enquiry?: string | null;
-  webhookUrl?: string;
 };
 
 /**
@@ -161,7 +158,6 @@ export async function placeCallForLead(
     phoneNumber: target.phone,
     reason: target.enquiry ?? undefined,
     leadId: target.leadId,
-    webhookUrl: target.webhookUrl,
   });
 
   if (!result.success || !result.attemptId) {
@@ -170,21 +166,12 @@ export async function placeCallForLead(
     return failed(result.success ? "No call id returned" : result.error);
   }
 
-  const { data: attempt } = await supabase
-    .from("call_attempts")
-    .insert({
-      lead_id: target.leadId,
-      business_id: target.businessId,
-      attempt_id: result.attemptId,
-      status: "dispatched",
-    })
-    .select("id")
-    .single();
-  // Written apart from the insert so a database without the phase 16 column still records
-  // the attempt, which the webhook needs to save the call's results.
-  if (attempt && result.droppedVariables.length) {
-    await supabase.from("call_attempts").update({ dropped_variables: result.droppedVariables }).eq("id", attempt.id);
-  }
+  await supabase.from("call_attempts").insert({
+    lead_id: target.leadId,
+    business_id: target.businessId,
+    attempt_id: result.attemptId,
+    status: "dispatched",
+  });
   await supabase.from("leads").update({ status: "calling" }).eq("id", target.leadId);
   return { ok: true, attemptId: result.attemptId };
 }

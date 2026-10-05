@@ -20,15 +20,11 @@ function when(iso: string): string {
   });
 }
 
-/**
- * Shown on every staff page: red while a client's calls are failing, amber while an
- * agent is not receiving its knowledge base. Silent when all is well.
- */
+/** Shown on every staff page while a client's calls are failing. Silent when all is well. */
 export async function CallAlertBanner() {
   const health = await getCallHealth();
   if (!health) return null;
-  const noKnowledge = health.warnings.filter((w) => w.missingKnowledge);
-  if (!health.failing.length && !noKnowledge.length) return null;
+  if (!health.failing.length) return null;
 
   return (
     <div className="mb-6 space-y-3">
@@ -49,19 +45,6 @@ export async function CallAlertBanner() {
           </Link>
         </div>
       ) : null}
-
-      {noKnowledge.length ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          <p className="font-semibold">
-            {noKnowledge.map((w) => w.businessName).join(", ")}: the agent is not receiving the knowledge base
-          </p>
-          <p className="mt-1">
-            Its Sarvam agent has no <code>business_description</code> variable, so calls go out without the client&apos;s
-            prices and project details. In Sarvam&apos;s console, add that variable, put <code>@business_description</code>{" "}
-            in the agent&apos;s prompt, and commit the agent. This clears after the next call.
-          </p>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -80,17 +63,6 @@ export async function CallProblemsPanel() {
         <p className="mb-3 text-sm text-warn">
           Calls that never went out are not being recorded yet. Apply the phase 16 database migration (supabase db push).
         </p>
-      ) : null}
-      {health.warnings.some((w) => !w.missingKnowledge) ? (
-        <ul className="mb-3 space-y-1 text-sm text-muted">
-          {health.warnings
-            .filter((w) => !w.missingKnowledge)
-            .map((w) => (
-              <li key={w.businessId}>
-                {w.businessName}: the last call went out without {w.variables.join(", ")}, which its Sarvam agent does not define.
-              </li>
-            ))}
-        </ul>
       ) : null}
       {health.problems.length ? (
         <ul className="divide-y divide-border rounded-xl border border-border bg-surface">

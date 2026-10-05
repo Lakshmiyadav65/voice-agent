@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { formatE164PhoneNumber } from "@/lib/sarvam/client";
+import { formatE164PhoneNumber } from "@/lib/phone";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitizeAttribution, sourceFromAttribution } from "@/lib/leads/attribution";
 import { createLeadAndCall } from "@/lib/leads/create-lead";
 import { checkSubmissionAllowed, clientIpFrom, hashIp } from "@/lib/leads/rate-limit";
-import { resolveWebhookUrl } from "@/lib/voice/webhook-url";
 
 const MAX_FIELD_LENGTH = 500;
 
@@ -93,7 +92,6 @@ export async function POST(request: Request) {
       source: clean(body.source)?.slice(0, 50) ?? sourceFromAttribution(utm) ?? "ad_form",
       utm,
       ipHash,
-      webhookUrl: resolveWebhookUrl(request),
     });
 
     if (!result.ok) {

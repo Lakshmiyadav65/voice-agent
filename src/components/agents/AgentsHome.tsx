@@ -51,7 +51,7 @@ function timeAgo(iso: string, now: number): string {
 
 /**
  * The owner's agents. Staff create each one when they add the client and train it in
- * Sarvam's console, so there is nothing to create here.
+ * the voice provider's console, so there is nothing to create here.
  */
 export function AgentsHome({ agents }: { agents: AgentRow[] }) {
   const now = useNow();

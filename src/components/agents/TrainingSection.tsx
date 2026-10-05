@@ -5,7 +5,7 @@ import { formatTrainingDate, type AgentTraining } from "@/lib/voice/agent-traini
 type Props = { training: AgentTraining | null };
 
 /**
- * The training staff did for this agent in Sarvam's console, as they recorded it.
+ * The training staff did for this agent in the voice provider's console, as they recorded it.
  * Read-only: the owner changes facts through the knowledge base instead.
  */
 export function TrainingSection({ training }: Props) {
@@ -21,7 +21,7 @@ export function TrainingSection({ training }: Props) {
   const facts = [
     { label: "Greeting", value: training.greeting },
     { label: "Language", value: training.language },
-    // Sarvam's voice ids are lowercase ("pooja"); shown as a name.
+    // Providers often give voice ids in lowercase ("pooja"); shown as a name.
     { label: "Voice", value: training.voice.charAt(0).toUpperCase() + training.voice.slice(1) },
   ];
 

@@ -7,6 +7,7 @@ import { deliverCallResult } from "@/lib/delivery/deliver";
 import type { CallDetails } from "@/lib/voice/call-details";
 import { sanitizeCaptureFields } from "@/lib/voice/capture-fields";
 import { analyzeCall } from "@/lib/voice/summarize-call";
+import { addTranscriptVersions } from "@/lib/voice/translate-transcript";
 
 type AdminClient = SupabaseClient<Database>;
 
@@ -58,7 +59,10 @@ export async function recordCallResult(
     (lead as { ai_employees: { capture_fields: unknown } | null } | null)?.ai_employees?.capture_fields
   );
 
+  // Runs alongside the analysis: the turns in the call's script, in English letters and in English.
+  const versioned = addTranscriptVersions(result.transcript);
   const analysis = await analyzeCall(result.transcript, result.finalVariables, captureFields);
+  const transcript = await versioned;
 
   const { data: saved, error } = await supabase
     .from("call_attempts")
@@ -67,7 +71,7 @@ export async function recordCallResult(
       interaction_id: result.interactionId,
       duration: result.duration,
       failure_reason: result.failureReason,
-      transcript: result.transcript,
+      transcript,
       final_variables: result.finalVariables,
       summary: analysis.summary,
       visit_requested: analysis.visitRequested,

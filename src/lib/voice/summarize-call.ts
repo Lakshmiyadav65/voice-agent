@@ -129,7 +129,7 @@ function toStringList(value: unknown, limit: number): string[] {
 }
 
 /** Models wrap JSON in prose or fences often enough to be worth handling. */
-function extractJson(raw: string): Record<string, any> | null {
+export function extractJson(raw: string): Record<string, any> | null {
   const cleaned = raw.replace(/<think>[\s\S]*?<\/think>/g, "");
   const match = cleaned.match(/\{[\s\S]*\}/);
   if (!match) return null;

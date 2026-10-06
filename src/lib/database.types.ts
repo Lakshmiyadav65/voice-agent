@@ -106,9 +106,14 @@ export type Lead = {
 
 export type CallTranscriptTurn = {
   role: "agent" | "user";
+  /** What was said, as the provider wrote it down: despite the name, in any language or script. */
   en_text: string;
   /** Seconds from the start of the call, when the provider reports it. */
   at?: number;
+  /** The turn in the call's language and its own script, in English letters, and in English (see translate-transcript.ts). */
+  script?: string;
+  latin?: string;
+  english?: string;
 };
 
 // A lead's call that never went out (phase 16); see src/lib/voice/call-failures.ts for the reasons.

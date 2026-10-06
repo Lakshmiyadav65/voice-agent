@@ -1,3 +1,4 @@
+import { TranscriptTurns } from "@/components/owner/TranscriptTurns";
 import type { CallAttempt } from "@/lib/database.types";
 import { formatSeconds } from "@/lib/format";
 import { endReasonLabel, sanitizeCallDetails } from "@/lib/voice/call-details";
@@ -9,11 +10,6 @@ const STATUS: Record<CallAttempt["status"], { label: string; style: string }> = 
   failed: { label: "Failed", style: "bg-red-50 text-red-700" },
   dispatched: { label: "In progress", style: "bg-border/40 text-foreground" },
 };
-
-/** m:ss from the start of the call, as Cartesia's transcript shows it. */
-function clock(seconds: number): string {
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-}
 
 function Fact({ label, value }: { label: string; value: string }) {
   return (
@@ -83,28 +79,7 @@ export function CallDetailsPanel({ attempt }: { attempt: CallAttempt }) {
             </div>
           ) : null}
 
-          {transcript.length ? (
-            <ol className="mt-4 space-y-3">
-              {transcript.map((turn, index) => {
-                const agent = turn.role === "agent";
-                return (
-                  <li key={index} className={`flex ${agent ? "justify-start" : "justify-end"}`}>
-                    <div
-                      className={`max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${
-                        agent ? "bg-background text-foreground" : "bg-accent-soft text-ink"
-                      }`}
-                    >
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">
-                        {agent ? "Agent" : "Customer"}
-                        {typeof turn.at === "number" ? ` · ${clock(turn.at)}` : ""}
-                      </p>
-                      <p className="mt-1 whitespace-pre-wrap">{turn.en_text}</p>
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
-          ) : null}
+          {transcript.length ? <TranscriptTurns transcript={transcript} /> : null}
         </details>
       ) : null}
     </div>

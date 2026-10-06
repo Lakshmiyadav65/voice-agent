@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "db:seed": "tsx --env-file=.env.local scripts/seed-phase2.ts",
+    "staff:create": "tsx --env-file=.env.local scripts/create-staff.ts",
     "test:roles": "tsx scripts/test-roles.ts"
   },
   "dependencies": {

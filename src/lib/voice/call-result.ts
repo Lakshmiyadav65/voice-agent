@@ -4,6 +4,7 @@ import { chargeCall } from "@/lib/billing/credits";
 import { onCampaignCallFinished } from "@/lib/campaigns/engine";
 import type { CallAttempt, CallTranscriptTurn, Database } from "@/lib/database.types";
 import { deliverCallResult } from "@/lib/delivery/deliver";
+import type { CallDetails } from "@/lib/voice/call-details";
 import { sanitizeCaptureFields } from "@/lib/voice/capture-fields";
 import { analyzeCall } from "@/lib/voice/summarize-call";
 
@@ -23,6 +24,8 @@ export type CallResult = {
   transcript: CallTranscriptTurn[] | null;
   /** Whatever the provider's agent extracted during the call. */
   finalVariables: Record<string, unknown> | null;
+  /** End reason, channel, metrics; null when the provider reports none. */
+  details?: CallDetails | null;
 };
 
 export type RecordableAttempt = Pick<CallAttempt, "id" | "lead_id">;
@@ -81,6 +84,15 @@ export async function recordCallResult(
 
   if (error) throw new Error(`Could not save call result for attempt ${attempt.id}: ${error.message}`);
   if (!saved?.length) return false;
+
+  // Apart from the save above, so a database without the phase 20 column still keeps the call.
+  if (result.details) {
+    const { error: detailsError } = await supabase
+      .from("call_attempts")
+      .update({ call_details: result.details })
+      .eq("id", attempt.id);
+    if (detailsError) console.warn("[Call result] Details not saved:", detailsError.message);
+  }
 
   await supabase
     .from("leads")

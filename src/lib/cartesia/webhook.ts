@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "crypto";
 
 import type { CallTranscriptTurn } from "@/lib/database.types";
+import type { CallDetails } from "@/lib/voice/call-details";
 import type { CallResult } from "@/lib/voice/call-result";
 
 /**
@@ -26,11 +27,17 @@ export type CartesiaCall = {
   end_time?: string;
   end_reason?: string;
   // Cartesia also sends "system" turns (tool calls, events); only the two speakers are kept.
-  transcript?: { role?: string; text?: string }[];
+  transcript?: {
+    role?: string;
+    text?: string;
+    start_timestamp?: number;
+    tts_ttfb?: number;
+    was_interrupted?: boolean;
+  }[];
   error_message?: string;
   dynamic_variables?: Record<string, unknown>;
   /** "from" is the caller's number on inbound calls, or "websocket" for a browser preview. */
-  telephony_params?: { from?: string; to?: string; direction?: string };
+  telephony_params?: { from?: string; to?: string; direction?: string; connection_type?: string };
 };
 
 export type CartesiaWebhookEvent = {
@@ -57,9 +64,14 @@ const NOT_REACHED: Record<string, CallResult["status"]> = {
 export function toCallResult(event: CartesiaWebhookEvent): CallResult {
   const call = event.call ?? {};
   const endReason = call.end_reason ?? event.end_reason ?? "";
-  const transcript: CallTranscriptTurn[] = (call.transcript ?? [])
-    .filter((turn) => (turn.role === "assistant" || turn.role === "user") && turn.text?.trim())
-    .map((turn) => ({ role: turn.role === "assistant" ? "agent" : "user", en_text: turn.text!.trim() }));
+  const spoken = (call.transcript ?? []).filter(
+    (turn) => (turn.role === "assistant" || turn.role === "user") && turn.text?.trim()
+  );
+  const transcript: CallTranscriptTurn[] = spoken.map((turn) => ({
+    role: turn.role === "assistant" ? "agent" : "user",
+    en_text: turn.text!.trim(),
+    ...(typeof turn.start_timestamp === "number" ? { at: Math.max(0, Math.round(turn.start_timestamp)) } : {}),
+  }));
 
   // Cartesia reports a call that ends on inactivity as failed even after a conversation;
   // if the customer said anything, they were reached.
@@ -79,5 +91,25 @@ export function toCallResult(event: CartesiaWebhookEvent): CallResult {
     interactionId: call.id ?? event.call_id ?? null,
     transcript: transcript.length ? transcript : null,
     finalVariables: call.dynamic_variables ?? null,
+    details: callDetails(call, endReason, spoken),
+  };
+}
+
+function callDetails(call: CartesiaCall, endReason: string, spoken: NonNullable<CartesiaCall["transcript"]>): CallDetails {
+  const telephony = call.telephony_params ?? {};
+  const web = telephony.connection_type === "websocket" || telephony.from === "websocket";
+  const agentTurns = spoken.filter((turn) => turn.role === "assistant");
+  const ttfb = agentTurns.map((turn) => turn.tts_ttfb).filter((v): v is number => typeof v === "number" && v >= 0);
+  return {
+    endReason: endReason || null,
+    errorMessage: call.error_message ?? null,
+    channel: web ? "web" : telephony.from || telephony.to ? "phone" : null,
+    from: web ? "Browser" : (telephony.from ?? null),
+    to: telephony.to ?? null,
+    avgResponseMs: ttfb.length ? Math.round((ttfb.reduce((a, b) => a + b, 0) / ttfb.length) * 1000) : null,
+    turns: spoken.length,
+    interruptions: agentTurns.filter((turn) => turn.was_interrupted).length,
+    // Cartesia keeps a recording of every call it connected, playable through /agents/calls/{id}/audio.
+    hasRecording: Boolean(call.id) && spoken.length > 0,
   };
 }

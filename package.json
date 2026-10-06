@@ -9,6 +9,7 @@
     "lint": "eslint",
     "db:seed": "tsx --env-file=.env.local scripts/seed-phase2.ts",
     "staff:create": "tsx --env-file=.env.local scripts/create-staff.ts",
+    "calls:resync": "tsx --env-file=.env.local scripts/resync-cartesia-calls.ts",
     "test:roles": "tsx scripts/test-roles.ts"
   },
   "dependencies": {

@@ -1,6 +1,7 @@
 import type { CallAttempt, Lead } from "@/lib/database.types";
 import { secondsToFirstCall, type LeadWithCalls } from "@/lib/data/leads";
 import { formatRupees } from "@/lib/billing/credits";
+import { CallDetailsPanel } from "@/components/owner/CallDetailsPanel";
 import { formatSeconds } from "@/lib/format";
 import { campaignOf, sourceLabel } from "@/lib/leads/attribution";
 import { formatCapturedValue, sanitizeCaptured } from "@/lib/voice/capture-fields";
@@ -108,6 +109,8 @@ export function LeadCallCard({ lead, attempt }: LeadCallCardProps) {
       {visitAt ? (
         <p className="mt-3 text-sm text-accent">Preferred visit: {visitAt}</p>
       ) : null}
+
+      {attempt && attempt.status !== "dispatched" ? <CallDetailsPanel attempt={attempt} /> : null}
 
       <p className="mt-4 text-xs text-muted">
         {formatDateTime(lead.created_at)}

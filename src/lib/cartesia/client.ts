@@ -96,3 +96,27 @@ export async function placeCartesiaCall(call: {
   const reason = typeof placed?.error === "string" ? placed.error : JSON.stringify(placed?.error ?? body);
   return { success: false, error: `Cartesia API error: ${reason.slice(0, 500)}` };
 }
+
+/**
+ * A call's recording as WAV bytes, or null when Cartesia has none. Cartesia always sends
+ * the whole file (it ignores Range), so a few recent ones are kept in memory: the player
+ * asks for a recording piece by piece, and each piece would otherwise download it again.
+ */
+export async function fetchCallRecording(callId: string): Promise<ArrayBuffer | null> {
+  const cached = recordingCache.get(callId);
+  if (cached) return cached;
+
+  const res = await fetch(`${CARTESIA_API}/agents/calls/${encodeURIComponent(callId)}/audio`, {
+    headers: cartesiaHeaders(),
+  });
+  if (!res.ok) return null;
+  const audio = await res.arrayBuffer();
+
+  recordingCache.set(callId, audio);
+  if (recordingCache.size > RECORDINGS_KEPT) recordingCache.delete(recordingCache.keys().next().value!);
+  return audio;
+}
+
+const RECORDINGS_KEPT = 4;
+const recordingCache = new Map<string, ArrayBuffer>();
+

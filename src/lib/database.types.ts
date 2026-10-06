@@ -107,6 +107,8 @@ export type Lead = {
 export type CallTranscriptTurn = {
   role: "agent" | "user";
   en_text: string;
+  /** Seconds from the start of the call, when the provider reports it. */
+  at?: number;
 };
 
 // A lead's call that never went out (phase 16); see src/lib/voice/call-failures.ts for the reasons.
@@ -141,6 +143,8 @@ export type CallAttempt = {
   captured: CapturedValue[];
   billed_minutes: number | null;
   charge_paise: number | null;
+  // Phase 20; read through sanitizeCallDetails.
+  call_details: Json | null;
   created_at: string;
   updated_at: string;
 };

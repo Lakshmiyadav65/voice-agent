@@ -14,7 +14,12 @@ export type CallAnalysis = {
   unansweredQuestions: string[];
   topics: string[];
   captured: CapturedValue[];
+  /** When the customer asked to be called back, as an ISO date-time; null when they did not. */
+  callbackAt: string | null;
 };
+
+/** When the call happened and where, so "call me at nine thirty" can become an exact time. */
+export type CallTimeContext = { startedAt?: string | null; timeZone?: string | null };
 
 const OUTCOMES: CallOutcomeLabel[] = [
   "interested",
@@ -166,6 +171,31 @@ function withLeadVerdict(
   return `${verdict} ${summary}`;
 }
 
+const MAX_CALLBACK_DAYS = 30;
+
+/** "+05:30" for Asia/Kolkata at that moment, so a time the model writes is anchored correctly. */
+function utcOffset(at: Date, timeZone: string): string {
+  const name = new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "longOffset" })
+    .formatToParts(at)
+    .find((part) => part.type === "timeZoneName")?.value;
+  const match = /GMT([+-]\d{2}:\d{2})/.exec(name ?? "");
+  return match ? match[1] : "+00:00";
+}
+
+/**
+ * The callback time the model read from the call, kept only if it is a real time after the
+ * call and within a month. A time written without an offset is taken as the business's local time.
+ */
+function readCallbackAt(value: unknown, calledAt: Date, offset: string): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const text = value.trim();
+  const anchored = /([+-]\d{2}:?\d{2}|Z)$/i.test(text) ? text : `${text}${offset}`;
+  const at = new Date(anchored);
+  if (Number.isNaN(at.getTime())) return null;
+  const ahead = at.getTime() - calledAt.getTime();
+  return ahead > -5 * 60 * 1000 && ahead < MAX_CALLBACK_DAYS * 24 * 60 * 60 * 1000 ? at.toISOString() : null;
+}
+
 function fallbackSummary(text: string): string {
   const condensed = text.replace(/\s+/g, " ").trim();
   return condensed.slice(0, 400) + (condensed.length > 400 ? "..." : "");
@@ -184,15 +214,21 @@ function emptyAnalysis(
     unansweredQuestions: [],
     topics: [],
     captured: readCaptured(fields, null),
+    callbackAt: null,
   };
 }
 
 export async function analyzeCall(
   transcript: CallTranscriptTurn[] | null,
   finalVariables: Record<string, any> | null,
-  captureFields: CaptureField[] = []
+  captureFields: CaptureField[] = [],
+  time: CallTimeContext = {}
 ): Promise<CallAnalysis> {
   const intent = readVisitIntent(finalVariables);
+  const calledAt = time.startedAt && !Number.isNaN(Date.parse(time.startedAt)) ? new Date(time.startedAt) : new Date();
+  const timeZone = time.timeZone || "Asia/Kolkata";
+  const offset = utcOffset(calledAt, timeZone);
+  const localCallTime = calledAt.toLocaleString("en-IN", { timeZone, dateStyle: "full", timeStyle: "short" });
 
   if (!transcript?.length) {
     return {
@@ -225,6 +261,13 @@ Return ONLY a JSON object with these keys:
   this, e.g. "Asked for 2BHK prices in Kokapet".
 - "next_step": the follow-up agreed on the call, or the best next action for
   the business if none was agreed, e.g. "Call back on Saturday with the price list".
+- "callback_at": if the customer asked to be called back at a particular time,
+  or agreed to a time the agent offered, that moment as an ISO 8601 date-time
+  with the offset {offset}, e.g. "2026-10-06T21:30:00{offset}". The call started
+  {callTime} ({timeZone}); work out words like "nine thirty", "tomorrow" or
+  "after two hours" from that. Use the AM/PM the agent confirmed; otherwise the
+  next matching time after the call. "Tomorrow morning" with no time means
+  10:00. null if no callback time was agreed.
 - "outcome": one of {outcomes}.
 - "sentiment": one of positive, neutral, negative.
 - "unanswered_questions": array of questions the CUSTOMER asked that the agent
@@ -248,6 +291,9 @@ JSON:
       text: text.slice(0, 8000),
       outcomes: OUTCOMES.join(", "),
       capture: captureInstructions(captureFields),
+      offset,
+      callTime: localCallTime,
+      timeZone,
     });
 
     const parsed = extractJson(response);
@@ -267,6 +313,7 @@ JSON:
       unansweredQuestions: toStringList(parsed.unanswered_questions, 10),
       topics: toStringList(parsed.topics, 5),
       captured: readCaptured(captureFields, parsed.captured),
+      callbackAt: readCallbackAt(parsed.callback_at, calledAt, offset),
     };
   } catch (err) {
     console.warn("[analyzeCall] Falling back to raw transcript:", err);

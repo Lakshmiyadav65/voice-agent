@@ -27,6 +27,8 @@ export type CallResult = {
   finalVariables: Record<string, unknown> | null;
   /** End reason, channel, metrics; null when the provider reports none. */
   details?: CallDetails | null;
+  /** When the call started (ISO), so a callback time the customer gave can be worked out. */
+  startedAt?: string | null;
 };
 
 export type RecordableAttempt = Pick<CallAttempt, "id" | "lead_id">;
@@ -52,16 +54,21 @@ export async function recordCallResult(
   // The fields the owner wanted at the time of the call decide what gets extracted.
   const { data: lead } = await supabase
     .from("leads")
-    .select("ai_employees(capture_fields)")
+    .select("ai_employees(capture_fields), businesses(timezone)")
     .eq("id", attempt.lead_id)
     .maybeSingle();
-  const captureFields = sanitizeCaptureFields(
-    (lead as { ai_employees: { capture_fields: unknown } | null } | null)?.ai_employees?.capture_fields
-  );
+  const joined = lead as {
+    ai_employees: { capture_fields: unknown } | null;
+    businesses: { timezone: string | null } | null;
+  } | null;
+  const captureFields = sanitizeCaptureFields(joined?.ai_employees?.capture_fields);
 
   // Runs alongside the analysis: the turns in the call's script, in English letters and in English.
   const versioned = addTranscriptVersions(result.transcript);
-  const analysis = await analyzeCall(result.transcript, result.finalVariables, captureFields);
+  const analysis = await analyzeCall(result.transcript, result.finalVariables, captureFields, {
+    startedAt: result.startedAt,
+    timeZone: joined?.businesses?.timezone,
+  });
   const transcript = await versioned;
 
   const { data: saved, error } = await supabase
@@ -102,6 +109,15 @@ export async function recordCallResult(
     .from("leads")
     .update({ status: LEAD_STATUS_BY_CALL_STATUS[result.status] ?? "contacted" })
     .eq("id", attempt.lead_id);
+
+  // Apart from the save above, so a database without the phase 21 columns still keeps the call.
+  if (analysis.callbackAt) {
+    const { error: callbackError } = await supabase
+      .from("leads")
+      .update({ callback_at: analysis.callbackAt, callback_status: "scheduled" })
+      .eq("id", attempt.lead_id);
+    if (callbackError) console.warn("[Call result] Callback not scheduled:", callbackError.message);
+  }
   return true;
 }
 

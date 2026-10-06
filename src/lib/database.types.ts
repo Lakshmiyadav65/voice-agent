@@ -100,6 +100,9 @@ export type Lead = {
   ip_hash: string | null;
   external_id: string | null;
   status: "new" | "calling" | "contacted" | "unreachable" | "converted" | "closed";
+  // Phase 21: the time the customer asked to be called back, and how that callback stands.
+  callback_at: string | null;
+  callback_status: "scheduled" | "calling" | "done" | "failed" | null;
   created_at: string;
   updated_at: string;
 };

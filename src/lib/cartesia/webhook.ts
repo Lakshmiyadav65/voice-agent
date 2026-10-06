@@ -92,6 +92,7 @@ export function toCallResult(event: CartesiaWebhookEvent): CallResult {
     transcript: transcript.length ? transcript : null,
     finalVariables: call.dynamic_variables ?? null,
     details: callDetails(call, endReason, spoken),
+    startedAt: call.start_time ?? null,
   };
 }
 

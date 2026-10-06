@@ -3,9 +3,10 @@ import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 
 import { runCampaignTick } from "@/lib/campaigns/engine";
+import { runDueCallbacks } from "@/lib/leads/callbacks";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// Each tick dials real phones, so only the scheduler may trigger it. Vercel Cron
+// Each tick dials real phones (campaign contacts and callbacks that are due), so only the scheduler may trigger it. Vercel Cron
 // sends "Authorization: Bearer $CRON_SECRET" automatically when the env var is set.
 function authorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET?.trim();
@@ -23,5 +24,6 @@ export async function GET(request: Request) {
   if (!supabase) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
   const results = await runCampaignTick(supabase);
-  return NextResponse.json({ ran: results.length, results });
+  const callbacks = await runDueCallbacks(supabase);
+  return NextResponse.json({ ran: results.length, results, callbacks });
 }

@@ -23,6 +23,8 @@ export type DispatchLeadCallOptions = {
   phoneNumber: string;
   reason?: string;
   leadId?: string;
+  /** Sent to the agent as {{call_context}}, e.g. "Calling back at 9:30 PM as the customer asked". */
+  callContext?: string;
 };
 
 export type DispatchLeadCallResult = { success: true; attemptId: string } | { success: false; error: string };
@@ -245,7 +247,7 @@ export async function dispatchLeadCall(options: DispatchLeadCallOptions): Promis
   const result = await placeCartesiaCall({
     agentId: context.cartesiaAgentId ?? undefined,
     toNumber: formatE164PhoneNumber(options.phoneNumber),
-    variables: toCartesiaVariables(brief, options.leadId),
+    variables: toCartesiaVariables(brief, options.leadId, options.callContext),
   });
   return result.success ? { success: true, attemptId: result.callId } : { success: false, error: result.error };
 }

@@ -125,6 +125,8 @@ export type CallTarget = {
   name: string;
   phone: string;
   enquiry?: string | null;
+  /** Why this call, passed to the agent; set for callbacks. */
+  callContext?: string;
 };
 
 /**
@@ -158,6 +160,7 @@ export async function placeCallForLead(
     phoneNumber: target.phone,
     reason: target.enquiry ?? undefined,
     leadId: target.leadId,
+    callContext: target.callContext,
   });
 
   if (!result.success || !result.attemptId) {

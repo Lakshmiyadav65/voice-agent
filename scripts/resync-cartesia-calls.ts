@@ -46,7 +46,7 @@ async function main() {
       (lead as { ai_employees: { capture_fields: unknown } | null } | null)?.ai_employees?.capture_fields
     );
     const [analysis, transcript] = await Promise.all([
-      analyzeCall(result.transcript, result.finalVariables, fields),
+      analyzeCall(result.transcript, result.finalVariables, fields, { startedAt: result.startedAt, timeZone: "Asia/Kolkata" }),
       addTranscriptVersions(result.transcript),
     ]);
 

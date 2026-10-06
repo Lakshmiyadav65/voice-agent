@@ -15,6 +15,23 @@ const STATUS_STYLES: Record<Lead["status"], string> = {
   closed: "bg-border/40 text-muted",
 };
 
+const CALLBACK_BADGE: Record<NonNullable<Lead["callback_status"]>, { text: string; style: string }> = {
+  scheduled: { text: "Callback", style: "bg-amber-100 text-amber-900" },
+  calling: { text: "Calling back now", style: "bg-accent-soft text-accent" },
+  done: { text: "Called back", style: "bg-border/40 text-muted" },
+  failed: { text: "Callback failed: call by hand", style: "bg-red-50 text-red-700" },
+};
+
+function callbackTime(value: string): string {
+  return new Date(value).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function formatDateTime(value: string | null): string | null {
   if (!value) return null;
   return new Date(value).toLocaleString("en-IN", {
@@ -47,6 +64,12 @@ export function LeadCallCard({ lead, attempt }: LeadCallCardProps) {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {lead.callback_status ? (
+            <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${CALLBACK_BADGE[lead.callback_status].style}`}>
+              {CALLBACK_BADGE[lead.callback_status].text}
+              {lead.callback_status === "scheduled" && lead.callback_at ? `: ${callbackTime(lead.callback_at)}` : ""}
+            </span>
+          ) : null}
           {attempt?.visit_requested ? (
             <span className="rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-white">
               Visit requested

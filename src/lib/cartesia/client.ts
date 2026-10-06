@@ -29,7 +29,7 @@ function requireSetting(name: string): string {
  * the knowledge base, which reaches the agent only if its instructions include
  * {{business_description}}. Empty values are left out so they never blank a default.
  */
-export function toCartesiaVariables(brief: CallBrief, leadId?: string): Record<string, string> {
+export function toCartesiaVariables(brief: CallBrief, leadId?: string, callContext?: string): Record<string, string> {
   const v = brief.values;
   const vars: Record<string, string> = {
     name: v.lead_name,
@@ -41,6 +41,8 @@ export function toCartesiaVariables(brief: CallBrief, leadId?: string): Record<s
     business_name: v.business_name,
     business_type: v.business_type,
     business_description: brief.knowledge,
+    // Why this call, e.g. the callback the customer asked for; usable as {{call_context}}.
+    call_context: callContext ?? "",
     [LEAD_ID_VARIABLE]: leadId ?? "",
   };
   return Object.fromEntries(Object.entries(vars).filter(([, value]) => value?.trim()));

@@ -25,7 +25,8 @@ export type CartesiaCall = {
   start_time?: string;
   end_time?: string;
   end_reason?: string;
-  transcript?: { role?: "assistant" | "user"; text?: string }[];
+  // Cartesia also sends "system" turns (tool calls, events); only the two speakers are kept.
+  transcript?: { role?: string; text?: string }[];
   error_message?: string;
   dynamic_variables?: Record<string, unknown>;
   /** "from" is the caller's number on inbound calls, or "websocket" for a browser preview. */
@@ -60,7 +61,7 @@ export function toCallResult(event: CartesiaWebhookEvent): CallResult {
   const status = NOT_REACHED[endReason] ?? (failed ? "failed" : "connected");
 
   const transcript: CallTranscriptTurn[] = (call.transcript ?? [])
-    .filter((turn) => turn.text?.trim())
+    .filter((turn) => (turn.role === "assistant" || turn.role === "user") && turn.text?.trim())
     .map((turn) => ({ role: turn.role === "assistant" ? "agent" : "user", en_text: turn.text!.trim() }));
 
   const start = Date.parse(call.start_time ?? "");

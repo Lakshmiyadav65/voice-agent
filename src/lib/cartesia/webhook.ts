@@ -57,12 +57,15 @@ const NOT_REACHED: Record<string, CallResult["status"]> = {
 export function toCallResult(event: CartesiaWebhookEvent): CallResult {
   const call = event.call ?? {};
   const endReason = call.end_reason ?? event.end_reason ?? "";
-  const failed = event.type === "call_failed" || call.status === "failed";
-  const status = NOT_REACHED[endReason] ?? (failed ? "failed" : "connected");
-
   const transcript: CallTranscriptTurn[] = (call.transcript ?? [])
     .filter((turn) => (turn.role === "assistant" || turn.role === "user") && turn.text?.trim())
     .map((turn) => ({ role: turn.role === "assistant" ? "agent" : "user", en_text: turn.text!.trim() }));
+
+  // Cartesia reports a call that ends on inactivity as failed even after a conversation;
+  // if the customer said anything, they were reached.
+  const customerSpoke = transcript.some((turn) => turn.role === "user");
+  const failed = event.type === "call_failed" || call.status === "failed";
+  const status = NOT_REACHED[endReason] ?? (failed && !customerSpoke ? "failed" : "connected");
 
   const start = Date.parse(call.start_time ?? "");
   const end = Date.parse(call.end_time ?? "");

@@ -26,6 +26,20 @@ const OUTCOMES: CallOutcomeLabel[] = [
 ];
 const SENTIMENTS = ["positive", "neutral", "negative"] as const;
 
+type LeadQuality = "good" | "bad" | "unclear";
+const LEAD_QUALITY_LABEL: Record<LeadQuality, string> = {
+  good: "Good lead",
+  bad: "Bad lead",
+  unclear: "Unclear lead",
+};
+// An outcome this clear decides the verdict, so the summary never contradicts the outcome.
+const QUALITY_BY_OUTCOME: Partial<Record<CallOutcomeLabel, LeadQuality>> = {
+  interested: "good",
+  callback_requested: "good",
+  not_interested: "bad",
+  wrong_number: "bad",
+};
+
 const TRUTHY = new Set(["true", "yes", "y", "1", "interested", "confirmed"]);
 const FALSY = new Set(["false", "no", "n", "0", "not_interested", "declined"]);
 
@@ -127,6 +141,31 @@ function extractJson(raw: string): Record<string, any> | null {
   }
 }
 
+/**
+ * The owner reads the verdict first: "Good lead: <why>. Next step: <what>." then the call
+ * itself. It lives only in the summary text, so nothing else about the call changes.
+ */
+function withLeadVerdict(
+  summary: string,
+  outcome: CallOutcomeLabel | null,
+  parsed: Record<string, unknown>
+): string {
+  const asked = typeof parsed.lead_quality === "string" ? parsed.lead_quality.trim().toLowerCase() : "";
+  const quality: LeadQuality =
+    (outcome && QUALITY_BY_OUTCOME[outcome]) ||
+    (asked === "good" || asked === "bad" || asked === "unclear" ? asked : "unclear");
+  const sentence = (value: unknown) => {
+    const text = typeof value === "string" ? value.trim().replace(/[.\s]+$/, "") : "";
+    return text ? `${text}.` : "";
+  };
+  const reason = sentence(parsed.lead_reason);
+  const nextStep = sentence(parsed.next_step);
+  const verdict = [`${LEAD_QUALITY_LABEL[quality]}${reason ? `: ${reason}` : "."}`, nextStep && `Next step: ${nextStep}`]
+    .filter(Boolean)
+    .join(" ");
+  return `${verdict} ${summary}`;
+}
+
 function fallbackSummary(text: string): string {
   const condensed = text.replace(/\s+/g, " ").trim();
   return condensed.slice(0, 400) + (condensed.length > 400 ? "..." : "");
@@ -168,11 +207,24 @@ export async function analyzeCall(
 
   try {
     const prompt = PromptTemplate.fromTemplate(`
-You are analysing a sales call so the business can improve its voice agent.
+You are analysing a sales call so the business can improve its voice agent and
+follow up with the right prospects. The transcript may be in Telugu, Hindi or
+English, often written in Latin letters; always answer in English.
 
 Return ONLY a JSON object with these keys:
 - "summary": 2-4 short sentences for the business owner covering what the
   customer asked, what they were told, and any follow-up agreed.
+- "lead_quality": one of good, bad, unclear. Judge only from what the CUSTOMER
+  said and agreed to:
+    good = they showed interest: asked about price, location, size or details,
+    agreed to a site visit, a callback or to receive information.
+    bad = they said they are not interested, it is the wrong person, they asked
+    not to be called, or they are clearly not a buyer.
+    unclear = the call ended before they showed either.
+- "lead_reason": one short sentence saying what the customer said that shows
+  this, e.g. "Asked for 2BHK prices in Kokapet".
+- "next_step": the follow-up agreed on the call, or the best next action for
+  the business if none was agreed, e.g. "Call back on Saturday with the price list".
 - "outcome": one of {outcomes}.
 - "sentiment": one of positive, neutral, negative.
 - "unanswered_questions": array of questions the CUSTOMER asked that the agent
@@ -204,11 +256,11 @@ JSON:
     const outcome = OUTCOMES.includes(parsed.outcome) ? parsed.outcome : null;
     const sentiment = SENTIMENTS.includes(parsed.sentiment) ? parsed.sentiment : null;
 
+    const summary =
+      typeof parsed.summary === "string" && parsed.summary.trim() ? parsed.summary.trim() : fallbackSummary(text);
+
     return {
-      summary:
-        typeof parsed.summary === "string" && parsed.summary.trim()
-          ? parsed.summary.trim()
-          : fallbackSummary(text),
+      summary: withLeadVerdict(summary, outcome, parsed),
       ...intent,
       outcome,
       sentiment,

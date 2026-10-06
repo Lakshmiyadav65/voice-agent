@@ -63,13 +63,10 @@ export async function recordCallResult(
   } | null;
   const captureFields = sanitizeCaptureFields(joined?.ai_employees?.capture_fields);
 
-  // Runs alongside the analysis: the turns in the call's script, in English letters and in English.
-  const versioned = addTranscriptVersions(result.transcript);
   const analysis = await analyzeCall(result.transcript, result.finalVariables, captureFields, {
     startedAt: result.startedAt,
     timeZone: joined?.businesses?.timezone,
   });
-  const transcript = await versioned;
 
   const { data: saved, error } = await supabase
     .from("call_attempts")
@@ -78,7 +75,7 @@ export async function recordCallResult(
       interaction_id: result.interactionId,
       duration: result.duration,
       failure_reason: result.failureReason,
-      transcript,
+      transcript: result.transcript,
       final_variables: result.finalVariables,
       summary: analysis.summary,
       visit_requested: analysis.visitRequested,
@@ -122,14 +119,10 @@ export async function recordCallResult(
 }
 
 /**
- * Billing, campaign progress and result delivery for a saved call. Each step is
- * independent, so one failing never stops the others.
+ * Billing, campaign progress, result delivery and the transcript's readable versions for a
+ * saved call. Each step is independent, so one failing never stops the others.
  */
-export async function afterCallRecorded(
-  supabase: AdminClient,
-  attempt: RecordableAttempt,
-  status: CallResult["status"]
-) {
+export async function afterCallRecorded(supabase: AdminClient, attempt: RecordableAttempt, result: CallResult) {
   try {
     await chargeCall(supabase, attempt.id);
   } catch (err) {
@@ -137,7 +130,7 @@ export async function afterCallRecorded(
   }
   try {
     // Frees the campaign's line and schedules a retry if nobody picked up.
-    await onCampaignCallFinished(supabase, attempt.lead_id, status);
+    await onCampaignCallFinished(supabase, attempt.lead_id, result.status);
   } catch (err) {
     console.error("[Campaigns] Failed to update contact for attempt", attempt.id, err);
   }
@@ -145,5 +138,16 @@ export async function afterCallRecorded(
     await deliverCallResult(supabase, attempt.id);
   } catch (err) {
     console.error("[Result delivery] Failed for attempt", attempt.id, err);
+  }
+  try {
+    // Last and apart from the analysis, which shares the model's rate limit and matters more.
+    // A call this misses reads as said until npm run calls:resync fills it in.
+    const transcript = await addTranscriptVersions(result.transcript);
+    if (transcript?.some((turn) => turn.english)) {
+      const { error } = await supabase.from("call_attempts").update({ transcript }).eq("id", attempt.id);
+      if (error) throw new Error(error.message);
+    }
+  } catch (err) {
+    console.error("[Transcript versions] Failed for attempt", attempt.id, err);
   }
 }

@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   }
 
   // Answer first; slow or failing destinations must not delay or fail the webhook.
-  if (saved) after(() => afterCallRecorded(supabase, attempt, result.status));
+  if (saved) after(() => afterCallRecorded(supabase, attempt, result));
 
   return NextResponse.json({ received: true, call_id: callId });
 }

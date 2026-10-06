@@ -52,6 +52,8 @@ export type AiEmployee = {
   // Provider-neutral; read through sanitizeAgentSettings, which fills defaults.
   agent_settings: Json;
   agent_tests: Json;
+  // The client's own Cartesia agent (phase 19); null uses the shared CARTESIA_AGENT_ID.
+  cartesia_agent_id: string | null;
   // What staff trained in the voice provider's console, read through sanitizeAgentTraining; null until recorded.
   agent_training: Json | null;
   created_at: string;
@@ -302,6 +304,7 @@ export type Database = {
           capture_fields?: CaptureField[];
           agent_settings?: Json;
           agent_tests?: Json;
+          cartesia_agent_id?: string | null;
           agent_training?: Json | null;
           created_at?: string;
           updated_at?: string;

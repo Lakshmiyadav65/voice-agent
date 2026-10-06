@@ -28,6 +28,8 @@ export type DispatchLeadCallOptions = {
 export type DispatchLeadCallResult = { success: true; attemptId: string } | { success: false; error: string };
 
 export type ResolvedContext = {
+  /** The client's own Cartesia agent; null uses the shared CARTESIA_AGENT_ID. */
+  cartesiaAgentId: string | null;
   businessName: string;
   businessType: string;
   employeeName: string;
@@ -92,6 +94,7 @@ export function bundleKnowledge(
  */
 export async function resolveEmployeeContext(aiEmployeeId?: string | null): Promise<ResolvedContext> {
   const context: ResolvedContext = {
+    cartesiaAgentId: null,
     businessName: "Our Business",
     businessType: "Consumer & Commercial Services",
     employeeName: "Voice Agent",
@@ -115,6 +118,8 @@ export async function resolveEmployeeContext(aiEmployeeId?: string | null): Prom
   if (!employee) return context;
 
   context.employeeName = employee.name;
+  // Absent until the phase 19 migration is applied; calls then use the shared agent.
+  context.cartesiaAgentId = employee.cartesia_agent_id ?? null;
   context.captureBriefing = captureBriefing(sanitizeCaptureFields(employee.capture_fields));
   context.settings = sanitizeAgentSettings(employee.agent_settings);
 
@@ -238,6 +243,7 @@ export async function dispatchLeadCall(options: DispatchLeadCallOptions): Promis
   });
 
   const result = await placeCartesiaCall({
+    agentId: context.cartesiaAgentId ?? undefined,
     toNumber: formatE164PhoneNumber(options.phoneNumber),
     variables: toCartesiaVariables(brief, options.leadId),
   });

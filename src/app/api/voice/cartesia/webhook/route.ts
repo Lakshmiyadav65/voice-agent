@@ -1,30 +1,29 @@
-import { timingSafeEqual } from "crypto";
-
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { after, NextResponse } from "next/server";
 
+import { findAgentOwner } from "@/lib/cartesia/agents";
 import { LEAD_ID_VARIABLE } from "@/lib/cartesia/client";
-import { FINISHED_CALL_EVENTS, toCallResult, type CartesiaWebhookEvent } from "@/lib/cartesia/webhook";
+import {
+  FINISHED_CALL_EVENTS,
+  hasCartesiaSecret,
+  toCallResult,
+  type CartesiaWebhookEvent,
+} from "@/lib/cartesia/webhook";
+import type { Database } from "@/lib/database.types";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { afterCallRecorded, recordCallResult } from "@/lib/voice/call-result";
+import { afterCallRecorded, recordCallResult, type RecordableAttempt } from "@/lib/voice/call-result";
 
-/** Cartesia sends the secret set on the webhook in x-webhook-secret. Without one set here, nothing is accepted. */
-function secretMatches(received: string | null): boolean {
-  const expected = process.env.CARTESIA_WEBHOOK_SECRET;
-  if (!expected || !received) return false;
-  const a = Buffer.from(received);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
+type AdminClient = SupabaseClient<Database>;
 
 /**
  * Receives Cartesia's call events. A finished call is saved onto its attempt, then
- * billed, delivered and counted towards its campaign. Cartesia retries a 5xx, so a
- * failed save answers 500; a 401 or 400 is never retried.
+ * billed, delivered and counted towards its campaign. Calls we placed are matched by
+ * call id; any other call to a client's agent (an inbound call or a browser preview) is
+ * saved as a new lead for that client. Cartesia retries a 5xx, so a failed save answers
+ * 500; a 401 or 400 is never retried.
  */
 export async function POST(request: Request) {
-  if (!secretMatches(request.headers.get("x-webhook-secret"))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!hasCartesiaSecret(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const event = (await request.json().catch(() => null)) as CartesiaWebhookEvent | null;
   if (!event?.type) return NextResponse.json({ error: "Invalid webhook payload" }, { status: 400 });
@@ -36,26 +35,8 @@ export async function POST(request: Request) {
   const supabase = createAdminClient();
   if (!supabase) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
-  let { data: attempt } = await supabase
-    .from("call_attempts")
-    .select("id, lead_id")
-    .eq("attempt_id", callId)
-    .maybeSingle();
-
-  // Fallback: the lead id we sent with the call, matched to that lead's call still in progress.
-  const leadId = event.call?.dynamic_variables?.[LEAD_ID_VARIABLE];
-  if (!attempt && typeof leadId === "string" && leadId) {
-    ({ data: attempt } = await supabase
-      .from("call_attempts")
-      .select("id, lead_id")
-      .eq("lead_id", leadId)
-      .eq("status", "dispatched")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle());
-  }
-
-  // Calls started from Cartesia's own playground have no lead behind them.
+  const attempt = (await findPlacedAttempt(supabase, callId, event)) ?? (await saveIncomingCall(supabase, callId, event));
+  // An unlinked agent, such as the shared one previewed in the Playground, has no client to save under.
   if (!attempt) return NextResponse.json({ received: true, matched: false });
 
   const result = toCallResult(event);
@@ -71,4 +52,69 @@ export async function POST(request: Request) {
   if (saved) after(() => afterCallRecorded(supabase, attempt, result.status));
 
   return NextResponse.json({ received: true, call_id: callId });
+}
+
+/** The attempt for a call we placed: by call id, else by the lead id we sent with it. */
+async function findPlacedAttempt(
+  supabase: AdminClient,
+  callId: string,
+  event: CartesiaWebhookEvent
+): Promise<RecordableAttempt | null> {
+  const { data: byCall } = await supabase.from("call_attempts").select("id, lead_id").eq("attempt_id", callId).maybeSingle();
+  if (byCall) return byCall;
+
+  const leadId = event.call?.dynamic_variables?.[LEAD_ID_VARIABLE];
+  if (typeof leadId !== "string" || !leadId) return null;
+  const { data: byLead } = await supabase
+    .from("call_attempts")
+    .select("id, lead_id")
+    .eq("lead_id", leadId)
+    .eq("status", "dispatched")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return byLead;
+}
+
+/**
+ * A call nobody on our side placed, to an agent linked to a client: saved as a lead with
+ * one attempt so it shows in that client's Calls like any other. The attempt's unique
+ * call id makes a redelivered event find this attempt instead of adding a second lead.
+ */
+async function saveIncomingCall(
+  supabase: AdminClient,
+  callId: string,
+  event: CartesiaWebhookEvent
+): Promise<RecordableAttempt | null> {
+  const owner = await findAgentOwner(supabase, event.call?.agent_id ?? event.agent_id);
+  if (!owner) return null;
+
+  const from = event.call?.telephony_params?.from ?? "";
+  const isPhone = /^\+?\d{6,15}$/.test(from);
+  const { data: lead } = await supabase
+    .from("leads")
+    .insert({
+      business_id: owner.businessId,
+      ai_employee_id: owner.employeeId,
+      name: isPhone ? "Inbound caller" : "Browser preview",
+      phone: isPhone ? from : "Browser preview",
+      source: isPhone ? "inbound_call" : "browser_test",
+      status: "calling",
+    })
+    .select("id")
+    .single();
+  if (!lead) return null;
+
+  const { data: attempt, error } = await supabase
+    .from("call_attempts")
+    .insert({ lead_id: lead.id, business_id: owner.businessId, attempt_id: callId, status: "dispatched" })
+    .select("id, lead_id")
+    .single();
+  if (attempt) return attempt;
+
+  // 23505: a concurrent delivery of the same event saved this call first.
+  await supabase.from("leads").delete().eq("id", lead.id);
+  if (error?.code !== "23505") return null;
+  const { data: existing } = await supabase.from("call_attempts").select("id, lead_id").eq("attempt_id", callId).maybeSingle();
+  return existing;
 }

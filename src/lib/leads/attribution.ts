@@ -70,6 +70,7 @@ const SOURCE_LABELS: Record<string, string> = {
   ad_form: "Website form",
   dev_test_page: "Test page",
   browser_test: "Browser test call",
+  inbound_call: "Inbound call",
   demo_seed: "Demo data",
 };
 

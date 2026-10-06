@@ -6,6 +6,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 const MIN_PASSWORD_LENGTH = 8;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// As shown in Cartesia's Playground, e.g. "agent_EeShA2f5DRyJMXdxtsXszh".
+const CARTESIA_AGENT_ID_PATTERN = /^agent_[A-Za-z0-9]{6,64}$/;
+const NOT_AN_AGENT_ID = "That does not look like a Cartesia agent ID. Copy it from the agent in play.cartesia.ai (it starts with agent_).";
+const AGENT_TAKEN = "That Cartesia agent already belongs to another client. Each client needs their own agent.";
 
 function loginUrl(request: Request): string {
   const base = process.env.APP_PUBLIC_URL?.trim() || new URL(request.url).origin;
@@ -82,4 +86,49 @@ export async function POST(request: Request) {
   if (employeeError) return fail("Could not create the AI employee.", business.id);
 
   return NextResponse.json({ businessId: business.id, loginUrl: loginUrl(request), email, password });
+}
+
+/**
+ * Points an existing client's AI employee at its own Cartesia agent, or back to the
+ * shared CARTESIA_AGENT_ID when cleared. Outbound and inbound calls pick it up at once.
+ */
+export async function PATCH(request: Request) {
+  const session = await getSessionContext();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isPlatformStaff(session.profile.platform_role)) {
+    return NextResponse.json({ error: "Only platform staff can change a client's agent." }, { status: 403 });
+  }
+  const supabase = createAdminClient();
+  if (!supabase) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+
+  const body = await request.json().catch(() => null);
+  const employeeId = String(body?.employeeId ?? "").trim();
+  const cartesiaAgentId = String(body?.cartesiaAgentId ?? "").trim() || null;
+  if (!employeeId) return NextResponse.json({ error: "Choose the AI employee to update." }, { status: 400 });
+  if (cartesiaAgentId && !CARTESIA_AGENT_ID_PATTERN.test(cartesiaAgentId)) {
+    return NextResponse.json({ error: NOT_AN_AGENT_ID }, { status: 400 });
+  }
+
+  const { data: updated, error } = await supabase
+    .from("ai_employees")
+    .update({ cartesia_agent_id: cartesiaAgentId, ...(cartesiaAgentId ? { status: "live" as const } : {}) })
+    .eq("id", employeeId)
+    .select("id")
+    .maybeSingle();
+  if (error) {
+    const taken = error.code === "23505";
+    const needsMigration = /cartesia_agent_id/.test(error.message);
+    return NextResponse.json(
+      {
+        error: taken
+          ? AGENT_TAKEN
+          : needsMigration
+            ? "Apply the phase 19 database migration first (supabase db push), then try again."
+            : "Could not save the agent.",
+      },
+      { status: taken ? 409 : 500 }
+    );
+  }
+  if (!updated) return NextResponse.json({ error: "That AI employee was not found." }, { status: 404 });
+  return NextResponse.json({ cartesiaAgentId });
 }

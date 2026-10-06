@@ -1,9 +1,26 @@
+import { timingSafeEqual } from "crypto";
+
 import type { CallTranscriptTurn } from "@/lib/database.types";
 import type { CallResult } from "@/lib/voice/call-result";
+
+/**
+ * Whether a request from Cartesia carries our secret: the webhook sends it in
+ * x-webhook-secret, and the knowledge tool is set up to send the same header.
+ * With no secret configured, nothing is accepted.
+ */
+export function hasCartesiaSecret(request: Request): boolean {
+  const expected = process.env.CARTESIA_WEBHOOK_SECRET;
+  const received = request.headers.get("x-webhook-secret");
+  if (!expected || !received) return false;
+  const a = Buffer.from(received);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 /** The parts of Cartesia's call event we use (see docs.cartesia.ai observability#webhooks). */
 export type CartesiaCall = {
   id?: string;
+  agent_id?: string;
   status?: "started" | "completed" | "failed";
   start_time?: string;
   end_time?: string;
@@ -11,11 +28,14 @@ export type CartesiaCall = {
   transcript?: { role?: "assistant" | "user"; text?: string }[];
   error_message?: string;
   dynamic_variables?: Record<string, unknown>;
+  /** "from" is the caller's number on inbound calls, or "websocket" for a browser preview. */
+  telephony_params?: { from?: string; to?: string; direction?: string };
 };
 
 export type CartesiaWebhookEvent = {
   type?: string;
   call_id?: string;
+  agent_id?: string;
   end_reason?: string;
   call?: CartesiaCall;
 };

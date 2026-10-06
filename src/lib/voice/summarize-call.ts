@@ -173,7 +173,16 @@ function withLeadVerdict(
 
 const MAX_CALLBACK_DAYS = 30;
 
-/** "+05:30" for Asia/Kolkata at that moment, so a time the model writes is anchored correctly. */
+const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+// When a callback asked for by part of day alone ("call me in the evening") goes out.
+const PART_OF_DAY_HOUR: Record<string, number> = { morning: 10, afternoon: 14, evening: 18, night: 20 };
+// Hours a bare "call me at 10" is taken to mean when it could be either AM or PM.
+const WAKING_FROM = 7;
+const WAKING_UNTIL = 22;
+// A night-time reading this close is kept: "10:52" said at 10:49 PM means tonight.
+const IMMINENT_MS = 60 * 60 * 1000;
+
+/** "+05:30" for Asia/Kolkata at that moment, so a local time is anchored correctly. */
 function utcOffset(at: Date, timeZone: string): string {
   const name = new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "longOffset" })
     .formatToParts(at)
@@ -182,18 +191,94 @@ function utcOffset(at: Date, timeZone: string): string {
   return match ? match[1] : "+00:00";
 }
 
+function wholeNumber(value: unknown, min: number, max: number): number | null {
+  const n = typeof value === "string" && value.trim() ? Number(value) : value;
+  return typeof n === "number" && Number.isInteger(n) && n >= min && n <= max ? n : null;
+}
+
+/** The calendar date `days` after the call in the business's zone, as YYYY-MM-DD. */
+function localDate(calledAt: Date, timeZone: string, days: number): string {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(calledAt);
+  const date = new Date(`${today}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/** The 24-hour readings of an hour as said: "10" is 10:00 or 22:00 unless the part of day settles it. */
+function hourReadings(hour: number, partOfDay: string | null): number[] {
+  if (hour === 0 || hour >= 13) return [hour];
+  const am = hour % 12;
+  const pm = am + 12;
+  if (partOfDay === "morning") return [am];
+  if (partOfDay === "afternoon" || partOfDay === "evening") return [pm];
+  // "Night one o'clock" is 1 AM; "night nine" is 9 PM.
+  if (partOfDay === "night") return [hour >= 5 && hour !== 12 ? pm : am];
+  return [am, pm];
+}
+
+function localHour(at: Date, timeZone: string): number {
+  return Number(new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", hourCycle: "h23" }).format(at));
+}
+
 /**
- * The callback time the model read from the call, kept only if it is a real time after the
- * call and within a month. A time written without an offset is taken as the business's local time.
+ * When to call back, worked out here from the time the customer said, so the model only has
+ * to read "ten fifty two" as 10 and 52 (it is unreliable at turning that into a date). With
+ * AM/PM unknown, waking hours win: "tomorrow at 10" is 10 AM, and a bare "10" said at 11 AM
+ * is 10 AM tomorrow, not 10 PM tonight, unless the night-time reading is within the hour.
+ * Kept only within a month after the call.
  */
-function readCallbackAt(value: unknown, calledAt: Date, offset: string): string | null {
-  if (typeof value !== "string" || !value.trim()) return null;
-  const text = value.trim();
-  const anchored = /([+-]\d{2}:?\d{2}|Z)$/i.test(text) ? text : `${text}${offset}`;
-  const at = new Date(anchored);
-  if (Number.isNaN(at.getTime())) return null;
-  const ahead = at.getTime() - calledAt.getTime();
-  return ahead > -5 * 60 * 1000 && ahead < MAX_CALLBACK_DAYS * 24 * 60 * 60 * 1000 ? at.toISOString() : null;
+export function resolveCallbackAt(raw: unknown, calledAt: Date, timeZone: string): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const words = raw as Record<string, unknown>;
+  const offset = utcOffset(calledAt, timeZone);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const at = (days: number, hour: number, minute: number) =>
+    new Date(`${localDate(calledAt, timeZone, days)}T${pad(hour)}:${pad(minute)}:00${offset}`);
+
+  const candidates: Date[] = [];
+  // A bare hour on no named day, either AM or PM.
+  let ambiguous = false;
+  const inMinutes = wholeNumber(words.in_minutes, 1, MAX_CALLBACK_DAYS * 24 * 60);
+  if (inMinutes) {
+    candidates.push(new Date(calledAt.getTime() + inMinutes * 60_000));
+  } else {
+    const partOfDay = typeof words.part_of_day === "string" ? words.part_of_day.trim().toLowerCase() : null;
+    const dayWord = typeof words.day === "string" ? words.day.trim().toLowerCase() : "";
+    const hour = wholeNumber(words.hour, 0, 23);
+    const minute = hour === null ? 0 : (wholeNumber(words.minute, 0, 59) ?? 0);
+
+    const weekday = WEEKDAYS.indexOf(dayWord);
+    const todayWeekday = new Date(`${localDate(calledAt, timeZone, 0)}T12:00:00Z`).getUTCDay();
+    // Days after the call; a weekday named on that same day may mean today or next week.
+    const weekdayAhead = (weekday - todayWeekday + 7) % 7;
+    const days =
+      dayWord === "today" ? [0] : dayWord === "tomorrow" ? [1] : weekday >= 0 ? [weekdayAhead, weekdayAhead + 7] : null;
+
+    let hours =
+      hour !== null
+        ? hourReadings(hour, partOfDay)
+        : partOfDay && partOfDay in PART_OF_DAY_HOUR
+          ? [PART_OF_DAY_HOUR[partOfDay]]
+          : days
+            ? [10]
+            : [];
+    if (days && days[0] > 0 && hours.length > 1) {
+      const waking = hours.filter((h) => h >= WAKING_FROM && h < WAKING_UNTIL);
+      if (waking.length) hours = waking;
+    }
+    ambiguous = !days && hours.length > 1;
+    for (const day of days ?? [0, 1]) for (const h of hours) candidates.push(at(day, h, minute));
+  }
+
+  const upcoming = candidates
+    .filter((c) => !Number.isNaN(c.getTime()) && c.getTime() > calledAt.getTime())
+    .sort((a, b) => a.getTime() - b.getTime());
+  const awake = (c: Date) => localHour(c, timeZone) >= WAKING_FROM && localHour(c, timeZone) < WAKING_UNTIL;
+  let next = upcoming[0];
+  if (next && ambiguous && !awake(next) && next.getTime() - calledAt.getTime() > IMMINENT_MS) {
+    next = upcoming.find(awake) ?? next;
+  }
+  return next && next.getTime() - calledAt.getTime() < MAX_CALLBACK_DAYS * 24 * 60 * 60 * 1000 ? next.toISOString() : null;
 }
 
 function fallbackSummary(text: string): string {
@@ -227,8 +312,6 @@ export async function analyzeCall(
   const intent = readVisitIntent(finalVariables);
   const calledAt = time.startedAt && !Number.isNaN(Date.parse(time.startedAt)) ? new Date(time.startedAt) : new Date();
   const timeZone = time.timeZone || "Asia/Kolkata";
-  const offset = utcOffset(calledAt, timeZone);
-  const localCallTime = calledAt.toLocaleString("en-IN", { timeZone, dateStyle: "full", timeStyle: "short" });
 
   if (!transcript?.length) {
     return {
@@ -261,13 +344,21 @@ Return ONLY a JSON object with these keys:
   this, e.g. "Asked for 2BHK prices in Kokapet".
 - "next_step": the follow-up agreed on the call, or the best next action for
   the business if none was agreed, e.g. "Call back on Saturday with the price list".
-- "callback_at": if the customer asked to be called back at a particular time,
-  or agreed to a time the agent offered, that moment as an ISO 8601 date-time
-  with the offset {offset}, e.g. "2026-10-06T21:30:00{offset}". The call started
-  {callTime} ({timeZone}); work out words like "nine thirty", "tomorrow" or
-  "after two hours" from that. Use the AM/PM the agent confirmed; otherwise the
-  next matching time after the call. "Tomorrow morning" with no time means
-  10:00. null if no callback time was agreed.
+- "callback": null unless the customer asked to be called back at a time or
+  after a while. Otherwise an object read from the CUSTOMER's own words. The
+  agent sometimes mishears numbers, so if it repeated back a different time,
+  ignore its version even when the customer then said "ok"; use a time the
+  agent offered only if the customer gave none and agreed to it.
+    "said": the customer's words for the time, copied from the transcript.
+    "in_minutes": for a delay ("after two hours" = 120, "in 5 minutes" = 5),
+      else null.
+    "day": "today", "tomorrow" or a weekday such as "monday"; null if not said.
+    "hour", "minute": the clock time exactly as said, as numbers ("ten fifty
+      two" = 10 and 52, "nine thirty" = 9 and 30, "at 7" = 7 and 0); null if
+      no clock time was said. Do not convert to 24-hour or guess AM/PM.
+    "part_of_day": "morning", "afternoon", "evening" or "night" if the
+      customer (or the agent) said one, or AM/PM, else null.
+  Use the customer's time, not the agent's, in "next_step" and "summary".
 - "outcome": one of {outcomes}.
 - "sentiment": one of positive, neutral, negative.
 - "unanswered_questions": array of questions the CUSTOMER asked that the agent
@@ -291,9 +382,6 @@ JSON:
       text: text.slice(0, 8000),
       outcomes: OUTCOMES.join(", "),
       capture: captureInstructions(captureFields),
-      offset,
-      callTime: localCallTime,
-      timeZone,
     });
 
     const parsed = extractJson(response);
@@ -313,7 +401,7 @@ JSON:
       unansweredQuestions: toStringList(parsed.unanswered_questions, 10),
       topics: toStringList(parsed.topics, 5),
       captured: readCaptured(captureFields, parsed.captured),
-      callbackAt: readCallbackAt(parsed.callback_at, calledAt, offset),
+      callbackAt: resolveCallbackAt(parsed.callback, calledAt, timeZone),
     };
   } catch (err) {
     console.warn("[analyzeCall] Falling back to raw transcript:", err);

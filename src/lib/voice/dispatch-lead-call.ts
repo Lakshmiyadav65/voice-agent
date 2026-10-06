@@ -1,3 +1,5 @@
+import { placeCartesiaCall, toCartesiaVariables } from "@/lib/cartesia/client";
+import { formatE164PhoneNumber } from "@/lib/phone";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   DEFAULT_AGENT_SETTINGS,
@@ -20,18 +22,10 @@ export type DispatchLeadCallOptions = {
   customerName?: string;
   phoneNumber: string;
   reason?: string;
-  initialBotMessage?: string;
   leadId?: string;
 };
 
-export type DispatchLeadCallResult =
-  | {
-      success: true;
-      attemptId?: string;
-      businessName: string;
-      openingMessage: string;
-    }
-  | { success: false; error: string };
+export type DispatchLeadCallResult = { success: true; attemptId: string } | { success: false; error: string };
 
 export type ResolvedContext = {
   businessName: string;
@@ -226,21 +220,26 @@ export async function prepareCallBrief(
 }
 
 /**
- * Why no call goes out. Sarvam was removed on 2026-10-05 and Cartesia is not connected
- * yet, so every lead is saved, recorded as a call failure for the staff alerts, and left
- * "new" for the owner to call by hand.
+ * Places a lead's call through Cartesia. The agent itself (instructions, greeting, voice,
+ * language) is trained in Cartesia's console; the call carries this lead and the
+ * business's knowledge as dynamic variables. Results come back on
+ * /api/voice/cartesia/webhook.
  */
-export const NO_VOICE_PROVIDER =
-  "No voice provider is connected yet, so no call was placed. Calls start once Cartesia is set up.";
-
-export async function dispatchLeadCall(
-  options: DispatchLeadCallOptions
-): Promise<DispatchLeadCallResult> {
+export async function dispatchLeadCall(options: DispatchLeadCallOptions): Promise<DispatchLeadCallResult> {
   if (!options.phoneNumber) {
     return { success: false, error: "Phone number is required to place a voice call." };
   }
 
-  // The provider takes the brief from prepareCallBrief(resolveEmployeeContext(...)) and
-  // returns its call id; its webhook hands results to recordCallResult in call-result.ts.
-  return { success: false, error: NO_VOICE_PROVIDER };
+  const context = await resolveEmployeeContext(options.aiEmployeeId);
+  const brief = buildCallBrief(context, {
+    name: options.customerName?.trim() || "Valued Customer",
+    phone: options.phoneNumber,
+    reason: options.reason,
+  });
+
+  const result = await placeCartesiaCall({
+    toNumber: formatE164PhoneNumber(options.phoneNumber),
+    variables: toCartesiaVariables(brief, options.leadId),
+  });
+  return result.success ? { success: true, attemptId: result.callId } : { success: false, error: result.error };
 }

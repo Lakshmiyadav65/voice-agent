@@ -2,7 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { OUT_OF_CREDITS } from "@/lib/billing/credits";
 import type { CallFailure, Database } from "@/lib/database.types";
-import { NO_VOICE_PROVIDER } from "@/lib/voice/dispatch-lead-call";
 
 export type CallFailureReason = CallFailure["reason"];
 
@@ -13,44 +12,50 @@ export const CALL_FAILURE_INFO: Record<CallFailureReason, { label: string; actio
     action: "Top up this client's credits under Manage call credits.",
   },
   no_balance: {
-    label: "Voice provider account is out of balance",
-    action: "Top up the voice provider's account. Every client's calls stop until then.",
+    label: "Cartesia account is out of credits",
+    action: "Add credits in Cartesia (play.cartesia.ai, Billing). Every client's calls stop until then.",
   },
   agent: {
-    label: "Problem with the voice agent",
-    action: "Check that this client's agent exists and is published in the voice provider's console.",
+    label: "Problem with the Cartesia agent",
+    action: "Check that CARTESIA_AGENT_ID names a live agent in play.cartesia.ai.",
   },
   number: {
     label: "Number or connection rejected",
-    action: "Check the calling number set up with the voice provider, and that the customer's number is valid.",
+    action:
+      "Check that CARTESIA_FROM_NUMBER_ID is a phone number on the Cartesia account that can call this country, and that the customer's number is valid.",
   },
   auth: {
-    label: "Voice provider rejected our API key",
-    action: "Check the voice provider's API key in Vercel's environment settings.",
+    label: "Cartesia rejected our API key",
+    action: "Check CARTESIA_API_KEY in Vercel's environment settings (a new key from play.cartesia.ai, API Keys).",
   },
   settings: {
-    label: "No voice provider connected",
-    action: "Calls are paused until Cartesia is connected. Leads are still saved, so owners can call them by hand.",
+    label: "Voice calling is not fully set up",
+    action:
+      "Fill in the CARTESIA_ setting named in the message, in Vercel's environment settings (or .env.local locally), then redeploy.",
   },
   network: {
-    label: "Could not reach the voice provider",
-    action: "Usually brief. If it keeps happening, check the provider's status page.",
+    label: "Could not reach Cartesia",
+    action: "Usually brief. If it keeps happening, check status.cartesia.ai.",
   },
   other: {
-    label: "Voice provider refused the call",
-    action: "Read the provider's message below for the cause.",
+    label: "Cartesia refused the call",
+    action: "Read Cartesia's message below for the cause.",
   },
 };
 
-/** Sorts an error from placing a call into a reason staff can act on. */
+/**
+ * Sorts an error from placing a call into a reason staff can act on. The messages come
+ * from our credit check, our Cartesia client's own setting checks, or Cartesia's API
+ * (which our client prefixes with "Cartesia API error").
+ */
 export function classifyCallError(message: string): CallFailureReason {
   if (message === OUT_OF_CREDITS) return "no_credits";
-  if (message === NO_VOICE_PROVIDER) return "settings";
-  if (/\(402\)|insufficient balance|wallet/i.test(message)) return "no_balance";
+  if (/CARTESIA_[A-Z_]+ is not set/.test(message)) return "settings";
+  if (/\(402\)|insufficient|credits|balance|quota/i.test(message)) return "no_balance";
   if (/\((401|403)\)|api key|unauthori[sz]ed|forbidden/i.test(message)) return "auth";
-  if (/agent|version/i.test(message)) return "agent";
-  if (/connection|phone|number|e\.164/i.test(message)) return "number";
-  if (/fetch failed|timed? ?out|ECONN|ENOTFOUND|network/i.test(message)) return "network";
+  if (/agent/i.test(message)) return "agent";
+  if (/number|phone|e\.164|destination|concurrency/i.test(message)) return "number";
+  if (/could not reach|fetch failed|timed? ?out|ECONN|ENOTFOUND/i.test(message)) return "network";
   return "other";
 }
 

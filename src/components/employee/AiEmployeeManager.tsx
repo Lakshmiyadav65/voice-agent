@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import type { AiEmployee, Business, KnowledgeDocument } from "@/lib/database.types";
 import { CaptureFieldsEditor } from "./CaptureFieldsEditor";
 import { VoiceRecorder } from "../rag/VoiceRecorder";
@@ -16,6 +17,7 @@ export function AiEmployeeManager({
   initialEmployees,
   business,
 }: AiEmployeeManagerProps) {
+  const confirm = useConfirm();
   const [employees, setEmployees] = useState<AiEmployee[]>(initialEmployees);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>(
     initialEmployees[0]?.id || ""
@@ -61,7 +63,13 @@ export function AiEmployeeManager({
   }
 
   async function handleDeleteDocument(docId: string) {
-    if (!confirm("Are you sure you want to delete this document and its database chunks?")) return;
+    const confirmed = await confirm({
+      title: "Delete this document?",
+      message: "It is removed from the knowledge base, and the agent stops using it from the next call.",
+      confirmLabel: "Delete document",
+      tone: "danger",
+    });
+    if (!confirmed) return;
     try {
       const res = await fetch(`/api/rag/documents?id=${docId}`, { method: "DELETE" });
       if (res.ok && selectedEmployee) {

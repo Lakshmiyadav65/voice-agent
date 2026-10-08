@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+
 type Props = { userId: string; email: string; businessName: string };
 type Reset = { email: string; password: string; loginUrl: string };
 
@@ -10,13 +12,20 @@ type Reset = { email: string; password: string; loginUrl: string };
  * ready to copy into WhatsApp or email, the same way Add client hands over a login.
  */
 export function ResetClientPassword({ userId, email, businessName }: Props) {
+  const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [reset, setReset] = useState<Reset | null>(null);
   const [copied, setCopied] = useState(false);
 
   async function run() {
-    if (!confirm(`Give ${email} a new password? Their old password stops working at once.`)) return;
+    const confirmed = await confirm({
+      title: `Give ${email} a new password?`,
+      message: "Their old password stops working at once.",
+      confirmLabel: "Reset password",
+      tone: "danger",
+    });
+    if (!confirmed) return;
     setBusy(true);
     setError("");
     try {

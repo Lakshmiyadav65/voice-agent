@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import type { KnowledgeDocument } from "@/lib/database.types";
 
 interface KnowledgeExplorerProps {
@@ -16,6 +17,7 @@ export function KnowledgeExplorer({
   aiEmployeeName,
   onRefresh,
 }: KnowledgeExplorerProps) {
+  const confirm = useConfirm();
   const [selectedDoc, setSelectedDoc] = useState<KnowledgeDocument | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [docChunks, setDocChunks] = useState<any[]>([]);
@@ -75,9 +77,13 @@ export function KnowledgeExplorer({
 
   async function handleDelete(docId: string, e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm("Are you sure you want to delete this document and its vector chunks?")) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: "Delete this document?",
+      message: "It is removed from the knowledge base, and the agent stops using it from the next call.",
+      confirmLabel: "Delete document",
+      tone: "danger",
+    });
+    if (!confirmed) return;
 
     setDeletingId(docId);
     try {

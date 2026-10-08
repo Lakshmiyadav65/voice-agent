@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+
 export type MetaPageSummary = {
   id: string;
   page_name: string;
@@ -22,11 +24,18 @@ function formatWhen(value: string): string {
 }
 
 export function MetaLeadAds({ configured, canManage, initialPages, notice }: Props) {
+  const confirm = useConfirm();
   const [pages, setPages] = useState(initialPages);
   const [busy, setBusy] = useState<string | null>(null);
 
   async function disconnect(page: MetaPageSummary) {
-    if (!window.confirm(`Stop taking lead ads from ${page.page_name}?`)) return;
+    const confirmed = await confirm({
+      title: `Stop taking lead ads from ${page.page_name}?`,
+      message: "New leads from this Page's ad forms won't come in or be called. You can connect it again later.",
+      confirmLabel: "Disconnect",
+      tone: "danger",
+    });
+    if (!confirmed) return;
     setBusy(page.id);
     try {
       const res = await fetch(`/api/integrations/meta/pages/${page.id}`, { method: "DELETE" });

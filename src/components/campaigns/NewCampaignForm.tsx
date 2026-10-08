@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 
 import { CallingSettings, DEFAULT_SETTINGS, type CampaignSettings } from "@/components/campaigns/CallingSettings";
 import {
@@ -75,6 +75,13 @@ function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
 
+/** Scrolls a field into view and puts the cursor in it, so the owner lands on what to fix. */
+function reveal(scrollTo: HTMLElement | null, focus: HTMLElement | null = scrollTo, block: ScrollLogicalPosition = "center") {
+  const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  scrollTo?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block });
+  focus?.focus({ preventScroll: true });
+}
+
 export function NewCampaignForm() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -87,8 +94,13 @@ export function NewCampaignForm() {
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState("");
   const [settings, setSettings] = useState<CampaignSettings>(DEFAULT_SETTINGS);
+  // Field errors show only after the first Create press, then clear as each field is fixed.
+  const [attempted, setAttempted] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const ids = useId();
+  const nameInput = useRef<HTMLInputElement>(null);
+  const contactsSection = useRef<HTMLElement>(null);
 
   const rows = useMemo(() => reviewContacts(contacts ?? []), [contacts]);
   const ready = useMemo(() => rows.filter((row) => row.status === "ready").map((row) => row.contact), [rows]);
@@ -99,6 +111,21 @@ export function NewCampaignForm() {
   };
   const tooMany = ready.length > MAX_CONTACTS;
   const pastedRows = useMemo(() => contactsFromCsv(pasteText).length, [pasteText]);
+
+  const nameProblem = name.trim() ? "" : "Give the campaign a name.";
+  const contactsProblem = pasting
+    ? pastedRows
+      ? "Press Add rows under your pasted list to use it."
+      : "Paste your list first, or upload a file instead."
+    : !contacts
+      ? "Add your contacts: choose a CSV file or paste a list."
+      : !ready.length
+        ? "None of these numbers can be called. Fix an invalid number or add a contact."
+        : tooMany
+          ? `Upload up to ${MAX_CONTACTS.toLocaleString("en-IN")} contacts per campaign.`
+          : "";
+  const nameError = attempted ? nameProblem : "";
+  const contactsError = attempted ? contactsProblem : "";
 
   async function readFile(file: File | undefined) {
     if (!file) return;
@@ -136,10 +163,13 @@ export function NewCampaignForm() {
 
   async function create(event: React.FormEvent) {
     event.preventDefault();
-    if (!name.trim()) return setError("Give the campaign a name.");
-    if (pasting && pastedRows) return setError("Press Add rows under your pasted list first.");
-    if (!ready.length) return setError("Add at least one valid phone number.");
-    if (tooMany) return setError(`Upload up to ${MAX_CONTACTS} contacts per campaign.`);
+    setAttempted(true);
+    // Take the owner to the first thing that needs fixing rather than leaving a note by the button.
+    if (nameProblem) return reveal(nameInput.current);
+    if (contactsProblem) {
+      const section = contactsSection.current;
+      return reveal(section, section?.querySelector<HTMLElement>("[data-fix]") ?? section, "start");
+    }
 
     setSaving(true);
     setError("");
@@ -174,9 +204,9 @@ export function NewCampaignForm() {
     );
   }
 
-  const input =
-    "mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-ink outline-hidden focus:border-accent";
-  const label = "text-xs font-semibold text-ink";
+  const input = (invalid = false) =>
+    `w-full rounded-lg border bg-background px-3 py-2 text-sm text-ink outline-hidden ${invalid ? "border-warn" : "border-border focus:border-accent"}`;
+  const label = "block text-xs font-semibold text-ink";
 
   return (
     <form onSubmit={create} className="space-y-8 rounded-xl border border-border bg-surface p-6">
@@ -187,12 +217,26 @@ export function NewCampaignForm() {
         </button>
       </div>
 
-      <label className="block">
-        <span className={label}>Campaign name</span>
-        <input value={name} maxLength={100} onChange={(e) => setName(e.target.value)} placeholder="e.g. Diwali offer — old customers" className={input} />
-      </label>
+      <div>
+        <label htmlFor={`${ids}-name`} className={label}>
+          Campaign name
+        </label>
+        <input
+          ref={nameInput}
+          id={`${ids}-name`}
+          value={name}
+          maxLength={100}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Diwali offer — old customers"
+          aria-invalid={Boolean(nameError)}
+          aria-describedby={nameError ? `${ids}-name-error` : undefined}
+          className={`mt-1.5 ${input(Boolean(nameError))}`}
+        />
+        {nameError ? <FieldError id={`${ids}-name-error`}>{nameError}</FieldError> : null}
+      </div>
 
-      <section className="space-y-3">
+      {/* Focusable so a Create press with no contacts can bring the owner here. */}
+      <section ref={contactsSection} tabIndex={-1} className="scroll-mt-6 space-y-3 outline-hidden">
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
           <div>
             <span className={label}>Contacts</span>
@@ -205,6 +249,12 @@ export function NewCampaignForm() {
             Download sample CSV
           </a>
         </div>
+
+        {contactsError ? (
+          <FieldError id={`${ids}-contacts-error`} boxed>
+            {contactsError}
+          </FieldError>
+        ) : null}
 
         {contacts ? (
           <>
@@ -232,15 +282,17 @@ export function NewCampaignForm() {
           <div>
             <textarea
               autoFocus
+              data-fix={pastedRows ? undefined : true}
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
               rows={6}
               placeholder={SAMPLE}
-              className={`${input} mt-0 font-mono text-xs`}
+              className={`${input(Boolean(contactsError) && !pastedRows)} font-mono text-xs`}
             />
             <div className="mt-2 flex flex-wrap items-center gap-4">
               <button
                 type="button"
+                data-fix={pastedRows ? true : undefined}
                 disabled={!pastedRows}
                 onClick={addPasted}
                 className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-accent/90 disabled:opacity-50"
@@ -267,8 +319,12 @@ export function NewCampaignForm() {
                 setDragging(false);
                 readFile(e.dataTransfer.files[0]);
               }}
-              className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 text-center transition focus-within:border-accent ${
-                dragging ? "border-accent bg-accent-soft/60" : "border-border bg-background hover:border-accent/60"
+              className={`flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 text-center transition ${
+                dragging
+                  ? "border-accent bg-accent-soft/60"
+                  : contactsError
+                    ? "border-warn bg-warn/5"
+                    : "border-border bg-background hover:border-accent/60 focus-within:border-accent"
               }`}
             >
               <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft text-accent">
@@ -280,7 +336,14 @@ export function NewCampaignForm() {
               <span className="text-xs text-muted">
                 Up to {MAX_CONTACTS.toLocaleString("en-IN")} contacts · numbers without a country code are treated as Indian
               </span>
-              <input type="file" accept={ACCEPT} className="sr-only" onChange={onFileInput} />
+              <input
+                type="file"
+                accept={ACCEPT}
+                data-fix
+                aria-describedby={contactsError ? `${ids}-contacts-error` : undefined}
+                className="sr-only"
+                onChange={onFileInput}
+              />
             </label>
             <button type="button" onClick={() => setPasting(true)} className="text-xs font-semibold text-muted hover:text-ink">
               Or paste a list instead
@@ -683,6 +746,22 @@ function ContactList({
         </p>
       ) : null}
     </div>
+  );
+}
+
+function FieldError({ id, boxed = false, children }: { id: string; boxed?: boolean; children: React.ReactNode }) {
+  return (
+    <p
+      id={id}
+      role="alert"
+      className={`flex items-start gap-1.5 text-xs font-semibold text-warn ${boxed ? "rounded-lg border border-warn/30 bg-warn/5 px-3 py-2" : "mt-1.5"}`}
+    >
+      <svg viewBox="0 0 24 24" className="mt-px h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.25} strokeLinecap="round" aria-hidden>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7.5v5.5M12 16.5v.01" />
+      </svg>
+      {children}
+    </p>
   );
 }
 

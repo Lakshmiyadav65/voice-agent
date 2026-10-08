@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import type { KnowledgeDocument } from "@/lib/database.types";
 import type { KnowledgeView, ViewFact, ViewSection } from "@/lib/rag/knowledge-view";
 
@@ -52,6 +53,7 @@ function RemoveButton({ label, onClick }: { label: string; onClick: () => void }
  * text, so the agent uses the change from its next call.
  */
 export function KnowledgeViewEditor({ documentId, name, view, onSaved, onCancel, onEditText }: Props) {
+  const confirm = useConfirm();
   const [draft, setDraft] = useState<Draft>(() => ({
     name,
     headline: view.headline,
@@ -159,8 +161,14 @@ export function KnowledgeViewEditor({ documentId, name, view, onSaved, onCancel,
             />
             <RemoveButton
               label={`Remove the "${s.title}" section`}
-              onClick={() => {
-                if (confirm(`Remove the whole "${s.title}" section?`)) {
+              onClick={async () => {
+                const confirmed = await confirm({
+                  title: `Remove the whole "${s.title}" section?`,
+                  message: "Everything in it is taken out of this draft. Nothing changes until you save.",
+                  confirmLabel: "Remove section",
+                  tone: "danger",
+                });
+                if (confirmed) {
                   setDraft((d) => ({ ...d, sections: d.sections.filter((_, j) => j !== i) }));
                 }
               }}

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import type { DeliveryKind, DeliveryTarget } from "@/lib/database.types";
 import { KIND_LABELS, validateDestination } from "@/lib/delivery/destinations";
 
@@ -65,6 +66,7 @@ type Props = {
 };
 
 export function DeliverySettings({ initialTargets, canManage, emailConfigured }: Props) {
+  const confirm = useConfirm();
   const [targets, setTargets] = useState(initialTargets);
   const [kind, setKind] = useState<DeliveryKind>("email");
   const [destination, setDestination] = useState("");
@@ -123,7 +125,13 @@ export function DeliverySettings({ initialTargets, canManage, emailConfigured }:
   }
 
   async function remove(target: DeliveryTarget) {
-    if (!window.confirm(`Stop sending results to ${target.destination}?`)) return;
+    const confirmed = await confirm({
+      title: `Stop sending results to ${target.destination}?`,
+      message: "New call results won't be sent here. You can add it again later.",
+      confirmLabel: "Stop sending",
+      tone: "danger",
+    });
+    if (!confirmed) return;
     setBusy(target.id);
     try {
       await api(`/api/delivery-targets/${target.id}`, "DELETE");

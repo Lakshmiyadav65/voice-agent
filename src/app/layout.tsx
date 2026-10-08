@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Manrope, Source_Serif_4 } from "next/font/google";
 
+import { ConfirmProvider } from "@/components/ui/ConfirmDialog";
+
 import "./globals.css";
 
 const manrope = Manrope({
@@ -32,7 +34,7 @@ export default function RootLayout({
     >
       {/* Extensions inject attributes into body before hydration; suppression is one level deep only */}
       <body className="min-h-full flex flex-col font-sans" suppressHydrationWarning>
-        {children}
+        <ConfirmProvider>{children}</ConfirmProvider>
       </body>
     </html>
   );

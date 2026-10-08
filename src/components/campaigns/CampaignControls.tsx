@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import type { Campaign } from "@/lib/database.types";
 
 const ACTIONS: Record<Campaign["status"], Array<{ action: "start" | "pause" | "resume"; label: string; primary?: boolean }>> = {
@@ -14,11 +15,28 @@ const ACTIONS: Record<Campaign["status"], Array<{ action: "start" | "pause" | "r
 
 export function CampaignControls({ campaign, contacts }: { campaign: Campaign; contacts: number }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  function startMessage(): string {
+    const hours = `${campaign.window_start.slice(0, 5)}–${campaign.window_end.slice(0, 5)} IST`;
+    const wait = campaign.retry_after_minutes >= 1440 ? "the next day" : `${campaign.retry_after_minutes} min later`;
+    const retry = campaign.max_attempts > 1 ? ` Anyone who doesn’t answer is called again ${wait}.` : "";
+    return `Calls go out between ${hours}, up to ${campaign.max_concurrent} at a time.${retry} You can pause at any time.`;
+  }
+
   async function run(action: string) {
-    if (action === "start" && !window.confirm(`Start calling ${contacts} contacts now?`)) return;
+    if (
+      action === "start" &&
+      !(await confirm({
+        title: `Start calling ${contacts} ${contacts === 1 ? "contact" : "contacts"}?`,
+        message: startMessage(),
+        confirmLabel: "Start calling",
+      }))
+    ) {
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -38,7 +56,13 @@ export function CampaignControls({ campaign, contacts }: { campaign: Campaign; c
   }
 
   async function remove() {
-    if (!window.confirm("Delete this campaign? Leads and call history it created are kept.")) return;
+    const confirmed = await confirm({
+      title: "Delete this campaign?",
+      message: "The leads and call history it created are kept.",
+      confirmLabel: "Delete campaign",
+      tone: "danger",
+    });
+    if (!confirmed) return;
     setBusy(true);
     const res = await fetch(`/api/campaigns/${campaign.id}`, { method: "DELETE" });
     if (res.ok) router.push("/dashboard/campaigns");
@@ -74,10 +98,17 @@ export function CampaignControls({ campaign, contacts }: { campaign: Campaign; c
 
 export function NeverCallButton({ phone }: { phone: string }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
 
   async function block() {
-    if (!window.confirm(`Never call ${phone} again from any campaign?`)) return;
+    const confirmed = await confirm({
+      title: `Never call ${phone} again?`,
+      message: "This number is skipped in this campaign and every future one. A call that is already ringing finishes.",
+      confirmLabel: "Never call",
+      tone: "danger",
+    });
+    if (!confirmed) return;
     setBusy(true);
     await fetch("/api/do-not-call", {
       method: "POST",

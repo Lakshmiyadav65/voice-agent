@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { DocumentUploader } from "@/components/rag/DocumentUploader";
+import { useConfirm } from "@/components/ui/ConfirmDialog";
 import type { KnowledgeDocument } from "@/lib/database.types";
 
 type Props = { aiEmployeeId: string; employeeName: string };
@@ -20,6 +21,7 @@ async function fetchKnowledge(aiEmployeeId: string): Promise<Knowledge> {
  * delete the client has on their own dashboard, so either side can fix a fact.
  */
 export function StaffKnowledgePanel({ aiEmployeeId, employeeName }: Props) {
+  const confirm = useConfirm();
   const [knowledge, setKnowledge] = useState<Knowledge | null>(null);
   const [error, setError] = useState("");
 
@@ -44,7 +46,13 @@ export function StaffKnowledgePanel({ aiEmployeeId, employeeName }: Props) {
   }
 
   async function remove(docId: string) {
-    if (!confirm("Delete this item from the client's knowledge base? Their agent stops using it from the next call.")) return;
+    const confirmed = await confirm({
+      title: "Delete this item?",
+      message: "It is removed from the client's knowledge base, and their agent stops using it from the next call.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!confirmed) return;
     const res = await fetch(`/api/rag/documents?id=${docId}`, { method: "DELETE" });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));

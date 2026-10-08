@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { useConfirm } from "@/components/ui/ConfirmDialog";
+
 type Props = {
   businessId: string;
   name: string;
@@ -13,6 +15,7 @@ type Props = {
 
 export function BusinessCreditsRow({ businessId, name, balanceLabel, ratePaise, low }: Props) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [rate, setRate] = useState(String(ratePaise / 100));
@@ -39,11 +42,16 @@ export function BusinessCreditsRow({ businessId, name, balanceLabel, ratePaise, 
     }
   }
 
-  function addCredit(event: React.FormEvent) {
+  async function addCredit(event: React.FormEvent) {
     event.preventDefault();
     const value = Number(amount);
     if (!value) return;
-    if (!window.confirm(`${value > 0 ? "Add" : "Remove"} ₹${Math.abs(value)} ${value > 0 ? "to" : "from"} ${name}?`)) return;
+    const confirmed = await confirm({
+      title: `${value > 0 ? "Add" : "Remove"} ₹${Math.abs(value)} ${value > 0 ? "to" : "from"} ${name}?`,
+      confirmLabel: value > 0 ? "Add credit" : "Remove credit",
+      tone: value > 0 ? "default" : "danger",
+    });
+    if (!confirmed) return;
     send("POST", { amountRupees: value, kind: value > 0 ? "topup" : "adjustment", note }, "Credit updated.").then(() => {
       setAmount("");
       setNote("");

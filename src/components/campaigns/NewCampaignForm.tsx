@@ -3,7 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
-import { contactsFromCsv, MAX_CONTACTS, reviewContacts, type ContactRow } from "@/lib/campaigns/contacts";
+import {
+  contactsFromCsv,
+  isCallablePhone,
+  MAX_CONTACTS,
+  reviewContacts,
+  type ContactInput,
+  type ContactRow,
+} from "@/lib/campaigns/contacts";
 
 const SAMPLE = "name,phone,notes\nRavi Kumar,9876543210,Asked about iPhone 16\nAnjali,+91 98123 45678,";
 const SAMPLE_HREF = `data:text/csv;charset=utf-8,${encodeURIComponent(SAMPLE)}`;
@@ -17,7 +24,45 @@ const ROW_STATUS: Record<ContactRow["status"], { label: string; className: strin
   duplicate: { label: "Duplicate", className: "border border-border bg-background text-muted" },
 };
 
+type Filter = "all" | ContactRow["status"];
+
+const FILTERS: Array<{ key: Filter; label: (count: number) => string; idle: string; active: string }> = [
+  { key: "all", label: (n) => `All ${n}`, idle: "border-border bg-surface text-muted", active: "border-ink bg-ink text-white" },
+  { key: "ready", label: (n) => `${n} ready to call`, idle: "border-transparent bg-accent-soft text-accent", active: "border-accent bg-accent text-white" },
+  {
+    key: "invalid",
+    label: (n) => `${plural(n, "invalid number")} · skipped`,
+    idle: "border-transparent bg-warn/10 text-warn",
+    active: "border-warn bg-warn text-white",
+  },
+  {
+    key: "duplicate",
+    label: (n) => `${plural(n, "duplicate")} · removed`,
+    idle: "border-border bg-background text-muted",
+    active: "border-muted bg-muted text-white",
+  },
+];
+
+// Solid, so the pinned actions column hides the cells scrolling under it.
+const ROW_BG = {
+  normal: "bg-surface",
+  dropped: "bg-[color-mix(in_srgb,var(--background)_45%,var(--surface))]",
+  editing: "bg-[color-mix(in_srgb,var(--accent-soft)_45%,var(--surface))]",
+};
+
+/** A contact as the owner sees and edits it; the id keeps edits on the right row after deletes. */
+type Draft = ContactInput & { id: number };
 type Counts = Record<ContactRow["status"], number>;
+type Editing = { id: number; name: string; phone: string; notes: string; isNew: boolean };
+
+let lastId = 0;
+function nextId(): number {
+  return ++lastId;
+}
+
+function toDrafts(contacts: ContactInput[]): Draft[] {
+  return contacts.map((contact) => ({ ...contact, id: nextId() }));
+}
 
 /** +91 86394 26564 for Indian mobiles, otherwise as stored. */
 function displayPhone(phone: string): string {
@@ -33,9 +78,11 @@ export function NewCampaignForm() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [csv, setCsv] = useState("");
-  const [fileName, setFileName] = useState("");
+  // null until a file or pasted list is added.
+  const [contacts, setContacts] = useState<Draft[] | null>(null);
+  const [source, setSource] = useState("");
   const [pasting, setPasting] = useState(false);
+  const [pasteText, setPasteText] = useState("");
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState("");
   const [maxConcurrent, setMaxConcurrent] = useState(3);
@@ -46,7 +93,7 @@ export function NewCampaignForm() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const rows = useMemo(() => reviewContacts(contactsFromCsv(csv)), [csv]);
+  const rows = useMemo(() => reviewContacts(contacts ?? []), [contacts]);
   const ready = useMemo(() => rows.filter((row) => row.status === "ready").map((row) => row.contact), [rows]);
   const counts: Counts = {
     ready: ready.length,
@@ -54,6 +101,7 @@ export function NewCampaignForm() {
     duplicate: rows.filter((row) => row.status === "duplicate").length,
   };
   const tooMany = ready.length > MAX_CONTACTS;
+  const pastedRows = useMemo(() => contactsFromCsv(pasteText).length, [pasteText]);
 
   async function readFile(file: File | undefined) {
     if (!file) return;
@@ -62,10 +110,11 @@ export function NewCampaignForm() {
       setFileError("That isn't a CSV file. Save the sheet as CSV first: File → Download → CSV in Google Sheets, or Save As → CSV in Excel.");
       return;
     }
+    const text = await file.text();
     setFileError("");
-    setFileName(file.name);
+    setContacts(toDrafts(contactsFromCsv(text)));
+    setSource(file.name);
     setPasting(false);
-    setCsv(await file.text());
   }
 
   function onFileInput(event: React.ChangeEvent<HTMLInputElement>) {
@@ -74,16 +123,24 @@ export function NewCampaignForm() {
     event.target.value = "";
   }
 
-  function clearContacts() {
-    setCsv("");
-    setFileName("");
+  function addPasted() {
+    setContacts(toDrafts(contactsFromCsv(pasteText)));
+    setSource("Pasted list");
     setPasting(false);
+  }
+
+  function clearContacts() {
+    setContacts(null);
+    setSource("");
+    setPasting(false);
+    setPasteText("");
     setFileError("");
   }
 
   async function create(event: React.FormEvent) {
     event.preventDefault();
     if (!name.trim()) return setError("Give the campaign a name.");
+    if (pasting && pastedRows) return setError("Press Add rows under your pasted list first.");
     if (!ready.length) return setError("Add at least one valid phone number.");
     if (tooMany) return setError(`Upload up to ${MAX_CONTACTS} contacts per campaign.`);
 
@@ -157,38 +214,51 @@ export function NewCampaignForm() {
           </a>
         </div>
 
-        {fileName ? (
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background px-4 py-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent">
-              <FileIcon />
-            </span>
-            <div className="min-w-0 flex-1 basis-40">
-              <p className="truncate text-sm font-semibold text-ink">{fileName}</p>
-              <p className="text-xs text-muted">{plural(rows.length, "row")} read</p>
+        {contacts ? (
+          <>
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background px-4 py-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent">
+                <FileIcon />
+              </span>
+              <div className="min-w-0 flex-1 basis-40">
+                <p className="truncate text-sm font-semibold text-ink">{source}</p>
+                <p className="text-xs text-muted">{plural(contacts.length, "row")}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="cursor-pointer rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-accent focus-within:border-accent">
+                  Replace file
+                  <input type="file" accept={ACCEPT} className="sr-only" onChange={onFileInput} />
+                </label>
+                <button type="button" onClick={clearContacts} className="px-1 py-1.5 text-xs font-semibold text-muted transition hover:text-warn">
+                  Remove
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
-              <label className="cursor-pointer rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-accent focus-within:border-accent">
-                Replace file
-                <input type="file" accept={ACCEPT} className="sr-only" onChange={onFileInput} />
-              </label>
-              <button type="button" onClick={clearContacts} className="px-1 py-1.5 text-xs font-semibold text-muted transition hover:text-warn">
-                Remove
-              </button>
-            </div>
-          </div>
+            <ContactList contacts={contacts} rows={rows} counts={counts} tooMany={tooMany} onChange={setContacts} />
+          </>
         ) : pasting ? (
           <div>
             <textarea
               autoFocus
-              value={csv}
-              onChange={(e) => setCsv(e.target.value)}
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
               rows={6}
               placeholder={SAMPLE}
               className={`${input} mt-0 font-mono text-xs`}
             />
-            <button type="button" onClick={clearContacts} className="mt-1.5 text-xs font-semibold text-muted hover:text-ink">
-              Upload a file instead
-            </button>
+            <div className="mt-2 flex flex-wrap items-center gap-4">
+              <button
+                type="button"
+                disabled={!pastedRows}
+                onClick={addPasted}
+                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-accent/90 disabled:opacity-50"
+              >
+                {pastedRows ? `Add ${plural(pastedRows, "row")}` : "Add rows"}
+              </button>
+              <button type="button" onClick={clearContacts} className="text-xs font-semibold text-muted hover:text-ink">
+                Upload a file instead
+              </button>
+            </div>
           </div>
         ) : (
           <div className="space-y-2">
@@ -227,7 +297,6 @@ export function NewCampaignForm() {
         )}
 
         {fileError ? <p className="text-sm text-warn">{fileError}</p> : null}
-        {rows.length ? <ContactPreview rows={rows} counts={counts} tooMany={tooMany} /> : null}
       </section>
 
       <section className="space-y-4 border-t border-border pt-6">
@@ -286,77 +355,287 @@ export function NewCampaignForm() {
   );
 }
 
-function ContactPreview({ rows, counts, tooMany }: { rows: ContactRow[]; counts: Counts; tooMany: boolean }) {
-  const chip = "rounded-full px-3 py-1 text-xs font-semibold";
-  const th = "sticky top-0 bg-background px-4 py-2.5 font-semibold shadow-[inset_0_-1px_0_var(--border)]";
+function ContactList({
+  contacts,
+  rows,
+  counts,
+  tooMany,
+  onChange,
+}: {
+  contacts: Draft[];
+  rows: ContactRow[];
+  counts: Counts;
+  tooMany: boolean;
+  onChange: (contacts: Draft[]) => void;
+}) {
+  const [filter, setFilter] = useState<Filter>("all");
+  // A new contact stays out of the list (and the counts) until it is saved.
+  const [editing, setEditing] = useState<Editing | null>(null);
+
+  // A filter left with nothing in it (the last invalid row was just fixed) falls back to all.
+  const active: Filter = filter !== "all" && counts[filter] === 0 ? "all" : filter;
+  const items = contacts.map((draft, i) => ({ draft, row: rows[i]!, number: i + 1 }));
+  const matching = items.filter((item) => active === "all" || item.row.status === active);
+  const visible = matching.slice(0, PREVIEW_ROWS);
+
+  function save() {
+    if (!editing) return;
+    const name = editing.name.trim();
+    const phone = editing.phone.trim();
+    const notes = editing.notes.trim();
+    if (!editing.isNew) {
+      onChange(contacts.map((c) => (c.id === editing.id ? { id: c.id, name, phone, notes: notes || undefined } : c)));
+    } else if (name || phone || notes) {
+      onChange([...contacts, { id: editing.id, name, phone, notes: notes || undefined }]);
+    }
+    setEditing(null);
+  }
+
+  function remove(id: number) {
+    onChange(contacts.filter((c) => c.id !== id));
+    if (editing?.id === id) setEditing(null);
+  }
+
+  function add() {
+    setEditing({ id: nextId(), name: "", phone: "", notes: "", isNew: true });
+    setFilter("all");
+  }
+
+  function onKeyDown(event: React.KeyboardEvent) {
+    // Enter would otherwise submit the whole form and create the campaign.
+    if (event.key === "Enter") {
+      event.preventDefault();
+      save();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      setEditing(null);
+    }
+  }
+
+  const chip = "rounded-full border px-3 py-1 text-xs font-semibold transition";
+  const thBase = "sticky top-0 bg-background px-4 py-2.5 font-semibold";
+  const th = `${thBase} z-10 shadow-[inset_0_-1px_0_var(--border)]`;
+  // Columns folded into the first one on phones, so a row never needs sideways scrolling.
+  const wide = "hidden sm:table-cell";
+  const pinned = "sticky right-0 bg-inherit shadow-[inset_1px_0_0_var(--border)]";
+  const cellInput = "w-full rounded-md border bg-surface px-2 py-1.5 text-sm text-ink outline-hidden focus:border-accent";
+  const iconButton = "rounded-md p-1.5 text-muted transition hover:bg-background";
+
+  function editRow(edit: Editing, number: number) {
+    const badPhone = Boolean(edit.phone.trim()) && !isCallablePhone(edit.phone);
+    const field = (key: "phone" | "notes") => ({
+      value: edit[key],
+      onChange: (e: React.ChangeEvent<HTMLInputElement>) => setEditing({ ...edit, [key]: e.target.value }),
+      onKeyDown,
+    });
+    const phoneInput = (className: string) => (
+      <input
+        aria-label="Phone"
+        aria-invalid={badPhone}
+        inputMode="tel"
+        placeholder="98765 43210"
+        {...field("phone")}
+        className={`${cellInput} tabular-nums ${badPhone ? "border-warn" : "border-border"} ${className}`}
+      />
+    );
+    const notesInput = (className: string) => (
+      <input aria-label="Notes" placeholder="What they're interested in" {...field("notes")} className={`${cellInput} border-border ${className}`} />
+    );
+    // mousedown is prevented so focus stays in the row and its blur does not save first.
+    const keepFocus = (e: React.MouseEvent) => e.preventDefault();
+
+    return (
+      <tr
+        key={edit.id}
+        className={ROW_BG.editing}
+        // Clicking or tabbing anywhere outside the row keeps what was typed.
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) save();
+        }}
+      >
+        <td className={`${wide} px-4 py-2 tabular-nums text-muted`}>{number}</td>
+        <td className="px-2 py-2">
+          <div className="flex flex-col gap-2">
+            <input
+              autoFocus
+              aria-label="Name"
+              placeholder="Name"
+              value={edit.name}
+              onChange={(e) => setEditing({ ...edit, name: e.target.value })}
+              onKeyDown={onKeyDown}
+              className={`${cellInput} border-border sm:min-w-32`}
+            />
+            {phoneInput("sm:hidden")}
+            {notesInput("sm:hidden")}
+          </div>
+        </td>
+        <td className={`${wide} px-2 py-2`}>{phoneInput("min-w-36")}</td>
+        <td className={`${wide} px-2 py-2`}>{notesInput("min-w-40")}</td>
+        <td className={`${wide} px-4 py-2`}>
+          {badPhone ? <StatusBadge status="invalid" /> : <span className="text-xs text-muted">{edit.isNew ? "New" : "Editing"}</span>}
+        </td>
+        <td className={`${pinned} px-3 py-2`}>
+          <div className="flex flex-col items-stretch gap-1 sm:flex-row sm:items-center sm:justify-end">
+            <button
+              type="button"
+              onMouseDown={keepFocus}
+              onClick={save}
+              className="rounded-md bg-accent px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-accent/90"
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onMouseDown={keepFocus}
+              onClick={() => setEditing(null)}
+              className="rounded-md px-2 py-1.5 text-xs font-semibold text-muted transition hover:text-ink"
+            >
+              Cancel
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        <span className={`${chip} bg-accent-soft text-accent`}>{counts.ready} ready to call</span>
-        {counts.invalid ? <span className={`${chip} bg-warn/10 text-warn`}>{plural(counts.invalid, "invalid number")} · skipped</span> : null}
-        {counts.duplicate ? (
-          <span className={`${chip} border border-border bg-background text-muted`}>{plural(counts.duplicate, "duplicate")} · removed</span>
-        ) : null}
-        {tooMany ? <span className={`${chip} bg-warn/10 text-warn`}>Over the {MAX_CONTACTS.toLocaleString("en-IN")} limit</span> : null}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Show rows">
+          {FILTERS.map(({ key, label, idle, active: on }) => {
+            const count = key === "all" ? contacts.length : counts[key];
+            if (key !== "all" && key !== "ready" && !count) return null;
+            return (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={active === key}
+                onClick={() => setFilter(active === key ? "all" : key)}
+                className={`${chip} ${active === key ? on : `${idle} hover:brightness-95`}`}
+              >
+                {label(count)}
+              </button>
+            );
+          })}
+          {tooMany ? <span className={`${chip} border-transparent bg-warn/10 text-warn`}>Over the {MAX_CONTACTS.toLocaleString("en-IN")} limit</span> : null}
+        </div>
+        <button
+          type="button"
+          onClick={add}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-accent"
+        >
+          <PlusIcon /> Add contact
+        </button>
       </div>
 
-      <div className="max-h-80 overflow-auto rounded-xl border border-border">
-        <table className="w-full min-w-[36rem] text-sm">
-          <thead className="text-left text-xs uppercase tracking-[0.1em] text-muted">
-            <tr>
-              <th className={`${th} hidden w-12 sm:table-cell`}>#</th>
-              <th className={th}>Name</th>
-              <th className={th}>Phone</th>
-              <th className={th}>Notes</th>
-              <th className={th}>Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border bg-surface">
-            {rows.slice(0, PREVIEW_ROWS).map((row, i) => {
-              const status = ROW_STATUS[row.status];
-              const dropped = row.status !== "ready";
-              return (
-                <tr key={i} className={dropped ? "bg-background/50" : undefined}>
-                  <td className="hidden px-4 py-2.5 tabular-nums text-muted sm:table-cell">{i + 1}</td>
-                  <td className={`px-4 py-2.5 ${dropped ? "text-muted" : "font-medium text-ink"}`}>{row.contact.name || "—"}</td>
-                  <td
-                    className={`whitespace-nowrap px-4 py-2.5 tabular-nums ${
-                      row.status === "invalid" ? "text-warn" : dropped ? "text-muted" : "text-foreground"
-                    }`}
-                  >
-                    {row.status === "invalid" ? row.contact.phone || "(empty)" : displayPhone(row.contact.phone)}
-                  </td>
-                  <td className="px-4 py-2.5 text-muted">{row.contact.notes || "—"}</td>
-                  <td className="px-4 py-2.5">
-                    <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${status.className}`}>
-                      {status.label}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      {items.length || editing?.isNew ? (
+        <div className="max-h-96 overflow-auto rounded-xl border border-border">
+          <table className="w-full text-sm sm:min-w-[46rem]">
+            <thead className="text-left text-xs uppercase tracking-[0.1em] text-muted">
+              <tr>
+                <th className={`${th} ${wide} w-12`}>#</th>
+                <th className={th}>
+                  <span className="sm:hidden">Contact</span>
+                  <span className="hidden sm:inline">Name</span>
+                </th>
+                <th className={`${th} ${wide}`}>Phone</th>
+                <th className={`${th} ${wide}`}>Notes</th>
+                <th className={`${th} ${wide}`}>Status</th>
+                <th className={`${thBase} right-0 z-20 w-px shadow-[inset_1px_-1px_0_var(--border)]`}>
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {visible.map(({ draft, row, number }) => {
+                if (editing?.id === draft.id) return editRow(editing, number);
 
-      {rows.length > PREVIEW_ROWS ? (
+                const dropped = row.status !== "ready";
+                const phone = row.status === "invalid" ? draft.phone || "(empty)" : displayPhone(row.contact.phone);
+                const phoneColor = row.status === "invalid" ? "text-warn" : dropped ? "text-muted" : "text-foreground";
+                const label = draft.name || draft.phone || "row";
+                return (
+                  <tr key={draft.id} className={dropped ? ROW_BG.dropped : ROW_BG.normal}>
+                    <td className={`${wide} px-4 py-2.5 tabular-nums text-muted`}>{number}</td>
+                    <td className={`px-4 py-2.5 ${dropped ? "text-muted" : "font-medium text-ink"}`}>
+                      {draft.name || <span className="font-normal text-muted">No name</span>}
+                      <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-normal sm:hidden">
+                        <span className={`tabular-nums ${phoneColor}`}>{phone}</span>
+                        <StatusBadge status={row.status} />
+                      </span>
+                      {draft.notes ? <span className="mt-0.5 block text-xs font-normal text-muted sm:hidden">{draft.notes}</span> : null}
+                    </td>
+                    <td className={`${wide} whitespace-nowrap px-4 py-2.5 tabular-nums ${phoneColor}`}>{phone}</td>
+                    <td className={`${wide} px-4 py-2.5 text-muted`}>{draft.notes || "—"}</td>
+                    <td className={`${wide} px-4 py-2.5`}>
+                      <StatusBadge status={row.status} />
+                    </td>
+                    <td className={`${pinned} px-3 py-2`}>
+                      <div className="flex items-center justify-end gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setEditing({ id: draft.id, name: draft.name, phone: draft.phone, notes: draft.notes ?? "", isNew: false })}
+                          aria-label={`Edit ${label}`}
+                          title="Edit"
+                          className={`${iconButton} hover:text-accent`}
+                        >
+                          <PencilIcon />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => remove(draft.id)}
+                          aria-label={`Delete ${label}`}
+                          title="Delete"
+                          className={`${iconButton} hover:text-warn`}
+                        >
+                          <TrashIcon />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {editing?.isNew ? editRow(editing, contacts.length + 1) : null}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted">
+          No contacts found. The file needs a phone column, or name, phone and notes in that order. You can also add contacts by hand.
+        </p>
+      )}
+
+      {matching.length > PREVIEW_ROWS ? (
         <p className="text-xs text-muted">
-          Showing the first {PREVIEW_ROWS} of {rows.length.toLocaleString("en-IN")} rows. The counts above include every row.
+          Showing the first {PREVIEW_ROWS} of {matching.length.toLocaleString("en-IN")} rows. The counts above include every row.
         </p>
       ) : null}
       {counts.invalid || counts.duplicate ? (
         <p className="text-xs text-muted">
-          Rows marked Invalid number or Duplicate won&apos;t be called. To include them, fix them in your sheet and upload it again.
+          Invalid and duplicate rows won&apos;t be called. Fix them with the pencil or delete them. Click a count above to see just those rows.
         </p>
       ) : null}
     </div>
   );
 }
 
+function StatusBadge({ status }: { status: ContactRow["status"] }) {
+  const { label, className } = ROW_STATUS[status];
+  return <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${className}`}>{label}</span>;
+}
+
+const ICON = {
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.75,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  "aria-hidden": true,
+} as const;
+
 function UploadIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg viewBox="0 0 24 24" className="h-6 w-6" {...ICON}>
       <path d="M12 15V4" />
       <path d="m7 9 5-5 5 5" />
       <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
@@ -366,10 +645,38 @@ function UploadIcon() {
 
 function FileIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg viewBox="0 0 24 24" className="h-5 w-5" {...ICON}>
       <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
       <path d="M14 3v5h5" />
       <path d="M9 13h6M9 17h6" />
+    </svg>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" {...ICON}>
+      <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" />
+      <path d="m13.5 6.5 4 4" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" {...ICON}>
+      <path d="M4 7h16" />
+      <path d="M10 11v6M14 11v6" />
+      <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
+      <path d="M9 7V4h6v3" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" {...ICON} strokeWidth={2.25}>
+      <path d="M12 5v14M5 12h14" />
     </svg>
   );
 }

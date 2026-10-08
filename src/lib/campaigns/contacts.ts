@@ -83,6 +83,12 @@ export type CheckedContacts = {
   duplicates: number;
 };
 
+const CALLABLE_PHONE = /^\+\d{8,15}$/;
+
+export function isCallablePhone(phone: string): boolean {
+  return CALLABLE_PHONE.test(formatE164PhoneNumber(phone));
+}
+
 export type ContactRow = { contact: ContactInput; status: "ready" | "invalid" | "duplicate" };
 
 /** Every row in upload order with what happens to it, so the preview can show why a row is dropped. */
@@ -91,7 +97,7 @@ export function reviewContacts(contacts: ContactInput[]): ContactRow[] {
 
   return contacts.map((contact) => {
     const phone = formatE164PhoneNumber(contact.phone ?? "");
-    if (!/^\+\d{8,15}$/.test(phone)) return { contact, status: "invalid" };
+    if (!CALLABLE_PHONE.test(phone)) return { contact, status: "invalid" };
     if (seen.has(phone)) return { contact: { ...contact, phone }, status: "duplicate" };
     seen.add(phone);
     return {

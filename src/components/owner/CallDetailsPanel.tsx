@@ -24,7 +24,7 @@ function Fact({ label, value }: { label: string; value: string }) {
  * A finished call as the voice provider saw it: status and why it ended, web or phone,
  * from and to, the agent's speed, then the transcript with timestamps and the recording.
  */
-export function CallDetailsPanel({ attempt }: { attempt: CallAttempt }) {
+export function CallDetailsPanel({ attempt, transcriptOpen = false }: { attempt: CallAttempt; transcriptOpen?: boolean }) {
   const details = sanitizeCallDetails(attempt.call_details);
   const transcript = attempt.transcript ?? [];
   const customerSpoke = transcript.some((turn) => turn.role === "user");
@@ -62,7 +62,7 @@ export function CallDetailsPanel({ attempt }: { attempt: CallAttempt }) {
       </dl>
 
       {transcript.length || details?.hasRecording ? (
-        <details className="mt-4">
+        <details className="mt-4" open={transcriptOpen}>
           <summary className="cursor-pointer text-sm font-semibold text-accent">
             Transcript{details?.hasRecording ? " and recording" : ""}
           </summary>

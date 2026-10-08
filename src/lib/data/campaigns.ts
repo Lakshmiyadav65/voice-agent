@@ -1,8 +1,11 @@
-import type { CallAttempt, Campaign, CampaignContact } from "@/lib/database.types";
+import type { CallAttempt, Campaign, CampaignContact, Lead } from "@/lib/database.types";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type AttemptSlice = Pick<CallAttempt, "status" | "outcome" | "visit_requested" | "created_at">;
-export type ContactWithCalls = CampaignContact & { leads: { call_attempts: AttemptSlice[] } | null };
+// Transcripts are left out on purpose: a big list would be megabytes. A row loads its calls when opened.
+export type ContactWithCalls = CampaignContact & {
+  leads: (Pick<Lead, "callback_at" | "callback_status"> & { call_attempts: AttemptSlice[] }) | null;
+};
 
 export type CampaignSummary = Campaign & {
   total: number;
@@ -63,7 +66,7 @@ export async function getCampaignDetail(businessId: string, campaignId: string) 
 
   const { data } = await supabase
     .from("campaign_contacts")
-    .select("*, leads(call_attempts(status, outcome, visit_requested, created_at))")
+    .select("*, leads(callback_at, callback_status, call_attempts(status, outcome, visit_requested, created_at))")
     .eq("campaign_id", campaign.id)
     .order("created_at")
     .limit(5000);

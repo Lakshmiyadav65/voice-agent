@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 
-import { CampaignControls, NeverCallButton } from "@/components/campaigns/CampaignControls";
+import { CampaignContacts } from "@/components/campaigns/CampaignContacts";
+import { CampaignControls } from "@/components/campaigns/CampaignControls";
 import { CampaignStatusBadge } from "@/components/campaigns/CampaignStatusBadge";
+import { LiveRefresh } from "@/components/campaigns/LiveRefresh";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
 import { canManageBusiness } from "@/lib/auth/access";
@@ -9,26 +11,7 @@ import { requireDashboardAccess } from "@/lib/auth/session";
 import { isWithinWindow } from "@/lib/campaigns/engine";
 import { getCampaignDetail } from "@/lib/data/campaigns";
 import { getOwnerWorkspace } from "@/lib/data/workspace";
-import type { CampaignContact } from "@/lib/database.types";
 import { createAdminClient } from "@/lib/supabase/admin";
-
-const CONTACT_STATUS: Record<CampaignContact["status"], { label: string; className: string }> = {
-  queued: { label: "Waiting", className: "text-muted" },
-  calling: { label: "On a call", className: "text-accent font-semibold" },
-  completed: { label: "Picked up", className: "text-accent" },
-  unreachable: { label: "No answer", className: "text-warn" },
-  failed: { label: "Call failed", className: "text-warn" },
-  do_not_call: { label: "Do not call", className: "text-muted line-through" },
-};
-
-const OUTCOME: Record<string, string> = {
-  interested: "Interested",
-  not_interested: "Not interested",
-  callback_requested: "Wants a callback",
-  wrong_number: "Wrong number",
-  no_answer: "No answer",
-  unclear: "Unclear",
-};
 
 function pct(part: number, whole: number): string {
   return whole ? `${Math.round((part / whole) * 100)}%` : "—";
@@ -50,9 +33,14 @@ export default async function CampaignPage({ params }: PageProps) {
   const canManage = admin ? await canManageBusiness(admin, session, business.id) : false;
   const callable = contacts.filter((c) => c.status !== "do_not_call").length;
   const inHours = isWithinWindow(campaign);
+  // Callbacks can still be due after the list itself is done.
+  const live =
+    campaign.status === "running" ||
+    contacts.some((c) => c.leads?.callback_status === "scheduled" || c.leads?.callback_status === "calling");
 
   return (
     <div>
+      {live ? <LiveRefresh seconds={10} /> : null}
       <PageHeader
         title={campaign.name}
         description={`Calls ${campaign.window_start.slice(0, 5)}–${campaign.window_end.slice(0, 5)} IST · up to ${campaign.max_concurrent} at a time · ${campaign.max_attempts} ${campaign.max_attempts === 1 ? "try" : "tries"} per number, ${campaign.retry_after_minutes >= 1440 ? "next day" : `${campaign.retry_after_minutes} min`} apart`}
@@ -113,51 +101,7 @@ export default async function CampaignPage({ params }: PageProps) {
 
       <section className="mt-10 border-t border-border pt-8">
         <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Contacts ({contacts.length})</h2>
-        <div className="mt-4 overflow-x-auto rounded-xl border border-border">
-          <table className="w-full min-w-[44rem] text-sm">
-            <thead className="bg-background text-left text-xs uppercase tracking-[0.1em] text-muted">
-              <tr>
-                <th className="px-4 py-2.5 font-semibold">Name</th>
-                <th className="px-4 py-2.5 font-semibold">Phone</th>
-                <th className="px-4 py-2.5 font-semibold">Status</th>
-                <th className="px-4 py-2.5 text-right font-semibold">Tries</th>
-                <th className="px-4 py-2.5 font-semibold">Outcome</th>
-                <th className="px-4 py-2.5" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border bg-surface">
-              {contacts.map((contact) => {
-                const status = CONTACT_STATUS[contact.status];
-                const outcome = contact.leads?.call_attempts
-                  ?.filter((a) => a.outcome)
-                  .sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.outcome;
-                const retryAt =
-                  contact.status === "queued" && contact.attempts > 0
-                    ? new Date(contact.next_attempt_at).toLocaleTimeString("en-IN", { timeStyle: "short", timeZone: campaign.time_zone })
-                    : null;
-                return (
-                  <tr key={contact.id}>
-                    <td className="px-4 py-2.5 text-ink">
-                      {contact.name}
-                      {contact.notes ? <span className="block text-xs text-muted">{contact.notes}</span> : null}
-                    </td>
-                    <td className="px-4 py-2.5 tabular-nums text-foreground">{contact.phone}</td>
-                    <td className="px-4 py-2.5">
-                      <span className={status.className}>{status.label}</span>
-                      {retryAt ? <span className="block text-xs text-muted">Retry at {retryAt}</span> : null}
-                      {contact.last_error ? <span className="block text-xs text-warn">{contact.last_error}</span> : null}
-                    </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{contact.attempts}</td>
-                    <td className="px-4 py-2.5 text-foreground">{outcome ? OUTCOME[outcome] ?? outcome : <span className="text-muted">—</span>}</td>
-                    <td className="px-4 py-2.5 text-right">
-                      {canManage && contact.status !== "do_not_call" ? <NeverCallButton phone={contact.phone} /> : null}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <CampaignContacts contacts={contacts} campaignId={campaign.id} canManage={canManage} timeZone={campaign.time_zone} />
       </section>
     </div>
   );

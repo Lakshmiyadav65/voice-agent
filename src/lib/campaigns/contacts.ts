@@ -83,30 +83,34 @@ export type CheckedContacts = {
   duplicates: number;
 };
 
+export type ContactRow = { contact: ContactInput; status: "ready" | "invalid" | "duplicate" };
+
+/** Every row in upload order with what happens to it, so the preview can show why a row is dropped. */
+export function reviewContacts(contacts: ContactInput[]): ContactRow[] {
+  const seen = new Set<string>();
+
+  return contacts.map((contact) => {
+    const phone = formatE164PhoneNumber(contact.phone ?? "");
+    if (!/^\+\d{8,15}$/.test(phone)) return { contact, status: "invalid" };
+    if (seen.has(phone)) return { contact: { ...contact, phone }, status: "duplicate" };
+    seen.add(phone);
+    return {
+      contact: {
+        name: contact.name?.slice(0, 200) || "Customer",
+        phone,
+        notes: contact.notes?.slice(0, 500) || undefined,
+      },
+      status: "ready",
+    };
+  });
+}
+
 /** Normalises numbers to E.164 and drops bad or repeated ones before anything is stored. */
 export function checkContacts(contacts: ContactInput[]): CheckedContacts {
-  const seen = new Set<string>();
-  const valid: ContactInput[] = [];
-  const invalid: ContactInput[] = [];
-  let duplicates = 0;
-
-  for (const contact of contacts) {
-    const phone = formatE164PhoneNumber(contact.phone ?? "");
-    if (!/^\+\d{8,15}$/.test(phone)) {
-      invalid.push(contact);
-      continue;
-    }
-    if (seen.has(phone)) {
-      duplicates++;
-      continue;
-    }
-    seen.add(phone);
-    valid.push({
-      name: contact.name?.slice(0, 200) || "Customer",
-      phone,
-      notes: contact.notes?.slice(0, 500) || undefined,
-    });
-  }
-
-  return { valid, invalid, duplicates };
+  const rows = reviewContacts(contacts);
+  return {
+    valid: rows.filter((row) => row.status === "ready").map((row) => row.contact),
+    invalid: rows.filter((row) => row.status === "invalid").map((row) => row.contact),
+    duplicates: rows.filter((row) => row.status === "duplicate").length,
+  };
 }

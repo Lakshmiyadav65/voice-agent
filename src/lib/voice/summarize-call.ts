@@ -1,8 +1,8 @@
 import { PromptTemplate } from "@langchain/core/prompts";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 
-import { getChatGroq } from "@/lib/rag/qa-engine";
 import type { CallOutcomeLabel, CallTranscriptTurn } from "@/lib/database.types";
+import { getAnalysisModel } from "@/lib/voice/analysis-model";
 import type { CaptureField, CapturedValue } from "@/lib/voice/capture-fields";
 
 export type CallAnalysis = {
@@ -321,7 +321,7 @@ export async function analyzeCall(
   }
 
   const text = transcriptToText(transcript);
-  const llm = getChatGroq();
+  const llm = getAnalysisModel();
   if (!llm) return emptyAnalysis(fallbackSummary(text), intent, captureFields);
 
   try {

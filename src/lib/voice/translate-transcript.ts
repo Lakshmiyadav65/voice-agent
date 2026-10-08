@@ -1,11 +1,11 @@
 import { StringOutputParser } from "@langchain/core/output_parsers";
 
 import type { CallTranscriptTurn } from "@/lib/database.types";
-import { getChatGroq } from "@/lib/rag/qa-engine";
+import { getAnalysisModel, type AnalysisModel } from "@/lib/voice/analysis-model";
 import { extractJson } from "@/lib/voice/summarize-call";
 
 type Versions = Pick<CallTranscriptTurn, "script" | "latin" | "english">;
-type Llm = NonNullable<ReturnType<typeof getChatGroq>>;
+type Llm = AnalysisModel;
 
 // Turns per request, so each answer stays well inside the token limit; batches run side by side.
 const BATCH = 12;
@@ -78,7 +78,7 @@ export async function addTranscriptVersions(
   transcript: CallTranscriptTurn[] | null
 ): Promise<CallTranscriptTurn[] | null> {
   if (!transcript?.length) return transcript;
-  const llm = getChatGroq(undefined, undefined, 4096);
+  const llm = getAnalysisModel(4096);
   if (!llm) return transcript;
 
   const batches: CallTranscriptTurn[][] = [];

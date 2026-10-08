@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import {
   contactsFromCsv,
@@ -372,11 +372,82 @@ function ContactList({
   // A new contact stays out of the list (and the counts) until it is saved.
   const [editing, setEditing] = useState<Editing | null>(null);
 
+  // The ids in their new order while a row is being dragged; the list itself changes on drop.
+  const [drag, setDrag] = useState<{ id: number; order: number[] } | null>(null);
+  const scrollBox = useRef<HTMLDivElement>(null);
+
   // A filter left with nothing in it (the last invalid row was just fixed) falls back to all.
   const active: Filter = filter !== "all" && counts[filter] === 0 ? "all" : filter;
-  const items = contacts.map((draft, i) => ({ draft, row: rows[i]!, number: i + 1 }));
+  const reviewed = new Map(contacts.map((draft, i) => [draft.id, { draft, row: rows[i]! }]));
+  const items = (drag ? drag.order : contacts.map((c) => c.id)).map((id, i) => ({ ...reviewed.get(id)!, number: i + 1 }));
   const matching = items.filter((item) => active === "all" || item.row.status === active);
   const visible = matching.slice(0, PREVIEW_ROWS);
+
+  function reorder(order: number[]) {
+    onChange(order.map((id) => reviewed.get(id)!.draft));
+  }
+
+  /** Where the dragged row belongs with the pointer at y over the row it is on, or null to stay put. */
+  function orderAt(order: number[], id: number, x: number, y: number): number[] | null {
+    const target = document.elementFromPoint(x, y)?.closest<HTMLElement>("tr[data-id]");
+    const overId = Number(target?.dataset.id);
+    if (!target || !overId || overId === id) return null;
+    const from = order.indexOf(id);
+    const to = order.indexOf(overId);
+    // Swap only past the middle of the row, so rows of different heights don't flip back and forth.
+    const rect = target.getBoundingClientRect();
+    const middle = rect.top + rect.height / 2;
+    if ((to > from && y < middle) || (to < from && y > middle)) return null;
+    const next = order.filter((other) => other !== id);
+    next.splice(to, 0, id);
+    return next;
+  }
+
+  function startDrag(event: React.PointerEvent, id: number) {
+    const box = scrollBox.current;
+    if (event.button !== 0 || !box) return;
+    event.preventDefault();
+    // Captured by the scroll box, not the handle: React moves the dragged row's element as it is
+    // reordered, which would drop a capture held by anything inside it.
+    box.setPointerCapture(event.pointerId);
+    let order = contacts.map((c) => c.id);
+    setDrag({ id, order });
+
+    const move = (e: PointerEvent) => {
+      const rect = box.getBoundingClientRect();
+      if (e.clientY < rect.top + 40) box.scrollBy(0, -16);
+      else if (e.clientY > rect.bottom - 40) box.scrollBy(0, 16);
+      const next = orderAt(order, id, e.clientX, e.clientY);
+      if (next) {
+        order = next;
+        setDrag({ id, order });
+      }
+    };
+    const end = (e: PointerEvent) => {
+      box.removeEventListener("pointermove", move);
+      box.removeEventListener("pointerup", end);
+      box.removeEventListener("pointercancel", end);
+      setDrag(null);
+      if (e.type === "pointerup" && order.some((other, i) => other !== contacts[i]?.id)) reorder(order);
+    };
+    box.addEventListener("pointermove", move);
+    box.addEventListener("pointerup", end);
+    box.addEventListener("pointercancel", end);
+  }
+
+  function moveByKey(event: React.KeyboardEvent, id: number) {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    event.preventDefault();
+    const order = contacts.map((c) => c.id);
+    const from = order.indexOf(id);
+    const to = from + (event.key === "ArrowUp" ? -1 : 1);
+    if (to < 0 || to >= order.length) return;
+    order.splice(from, 1);
+    order.splice(to, 0, id);
+    reorder(order);
+    // Moving the row can drop focus from its handle; put it back so the arrows keep working.
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-handle="${id}"]`)?.focus());
+  }
 
   function save() {
     if (!editing) return;
@@ -413,8 +484,10 @@ function ContactList({
   }
 
   const chip = "rounded-full border px-3 py-1 text-xs font-semibold transition";
-  const thBase = "sticky top-0 bg-background px-4 py-2.5 font-semibold";
-  const th = `${thBase} z-10 shadow-[inset_0_-1px_0_var(--border)]`;
+  const thBase = "sticky top-0 bg-background py-2.5 font-semibold";
+  const th = `${thBase} z-10 px-4 shadow-[inset_0_-1px_0_var(--border)]`;
+  // Handle and row number share the first column; the number hides on phones.
+  const lead = "w-px whitespace-nowrap pl-2 pr-0 sm:pl-3";
   // Columns folded into the first one on phones, so a row never needs sideways scrolling.
   const wide = "hidden sm:table-cell";
   const pinned = "sticky right-0 bg-inherit shadow-[inset_1px_0_0_var(--border)]";
@@ -453,7 +526,10 @@ function ContactList({
           if (!e.currentTarget.contains(e.relatedTarget as Node | null)) save();
         }}
       >
-        <td className={`${wide} px-4 py-2 tabular-nums text-muted`}>{number}</td>
+        <td className={`${lead} py-2 tabular-nums text-muted`}>
+          {/* Lines up with the number beside the handle on other rows. */}
+          <span className="hidden pl-7 sm:inline">{number}</span>
+        </td>
         <td className="px-2 py-2">
           <div className="flex flex-col gap-2">
             <input
@@ -529,11 +605,14 @@ function ContactList({
       </div>
 
       {items.length || editing?.isNew ? (
-        <div className="max-h-96 overflow-auto rounded-xl border border-border">
-          <table className="w-full text-sm sm:min-w-[46rem]">
+        <div ref={scrollBox} className="max-h-96 overflow-auto rounded-xl border border-border">
+          <table className={`w-full text-sm sm:min-w-[46rem] ${drag ? "cursor-grabbing select-none" : ""}`}>
             <thead className="text-left text-xs uppercase tracking-[0.1em] text-muted">
               <tr>
-                <th className={`${th} ${wide} w-12`}>#</th>
+                <th className={`${thBase} ${lead} z-10 shadow-[inset_0_-1px_0_var(--border)]`}>
+                  <span className="hidden pl-7 sm:inline">#</span>
+                  <span className="sr-only sm:hidden">Order</span>
+                </th>
                 <th className={th}>
                   <span className="sm:hidden">Contact</span>
                   <span className="hidden sm:inline">Name</span>
@@ -541,7 +620,7 @@ function ContactList({
                 <th className={`${th} ${wide}`}>Phone</th>
                 <th className={`${th} ${wide}`}>Notes</th>
                 <th className={`${th} ${wide}`}>Status</th>
-                <th className={`${thBase} right-0 z-20 w-px shadow-[inset_1px_-1px_0_var(--border)]`}>
+                <th className={`${thBase} right-0 z-20 w-px px-4 shadow-[inset_1px_-1px_0_var(--border)]`}>
                   <span className="sr-only">Actions</span>
                 </th>
               </tr>
@@ -554,9 +633,27 @@ function ContactList({
                 const phone = row.status === "invalid" ? draft.phone || "(empty)" : displayPhone(row.contact.phone);
                 const phoneColor = row.status === "invalid" ? "text-warn" : dropped ? "text-muted" : "text-foreground";
                 const label = draft.name || draft.phone || "row";
+                const dragging = drag?.id === draft.id;
                 return (
-                  <tr key={draft.id} className={dropped ? ROW_BG.dropped : ROW_BG.normal}>
-                    <td className={`${wide} px-4 py-2.5 tabular-nums text-muted`}>{number}</td>
+                  <tr key={draft.id} data-id={draft.id} className={dragging ? ROW_BG.editing : dropped ? ROW_BG.dropped : ROW_BG.normal}>
+                    <td className={`${lead} py-2.5`}>
+                      <span className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          data-handle={draft.id}
+                          onPointerDown={(e) => startDrag(e, draft.id)}
+                          onKeyDown={(e) => moveByKey(e, draft.id)}
+                          aria-label={`Move ${label}. Use the up and down arrow keys.`}
+                          title="Drag to change the order"
+                          className={`touch-none rounded-md p-1 transition hover:bg-background hover:text-ink ${
+                            dragging ? "cursor-grabbing text-accent" : "cursor-grab text-muted/70"
+                          }`}
+                        >
+                          <GripIcon />
+                        </button>
+                        <span className="hidden min-w-5 tabular-nums text-muted sm:inline">{number}</span>
+                      </span>
+                    </td>
                     <td className={`px-4 py-2.5 ${dropped ? "text-muted" : "font-medium text-ink"}`}>
                       {draft.name || <span className="font-normal text-muted">No name</span>}
                       <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-normal sm:hidden">
@@ -605,6 +702,15 @@ function ContactList({
         </p>
       )}
 
+      {items.length > 1 ? (
+        <p className="text-xs text-muted">
+          Calls go out from the top of the list down. Drag a row by{" "}
+          <span className="inline-block align-middle text-muted/70">
+            <GripIcon />
+          </span>{" "}
+          to change the order.
+        </p>
+      ) : null}
       {matching.length > PREVIEW_ROWS ? (
         <p className="text-xs text-muted">
           Showing the first {PREVIEW_ROWS} of {matching.length.toLocaleString("en-IN")} rows. The counts above include every row.
@@ -669,6 +775,19 @@ function TrashIcon() {
       <path d="M10 11v6M14 11v6" />
       <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
       <path d="M9 7V4h6v3" />
+    </svg>
+  );
+}
+
+function GripIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
+      {[6, 12, 18].map((y) => (
+        <g key={y}>
+          <circle cx="9" cy={y} r="1.6" />
+          <circle cx="15" cy={y} r="1.6" />
+        </g>
+      ))}
     </svg>
   );
 }

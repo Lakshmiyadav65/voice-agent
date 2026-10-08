@@ -67,14 +67,22 @@ export async function POST(request: Request) {
     .single();
   if (error || !campaign) return NextResponse.json({ error: "Could not create the campaign." }, { status: 500 });
 
-  const rows = valid.map((c) => ({
-    campaign_id: campaign.id,
-    business_id: businessId,
-    name: c.name,
-    phone: c.phone,
-    notes: c.notes ?? null,
-    status: blockedPhones.has(c.phone) ? ("do_not_call" as const) : ("queued" as const),
-  }));
+  // Rows from one insert would all share now(), leaving the calling order (next_attempt_at)
+  // and the listed order (created_at) to chance; a millisecond apart keeps the owner's order.
+  const start = Date.now();
+  const rows = valid.map((c, i) => {
+    const at = new Date(start + i).toISOString();
+    return {
+      campaign_id: campaign.id,
+      business_id: businessId,
+      name: c.name,
+      phone: c.phone,
+      notes: c.notes ?? null,
+      status: blockedPhones.has(c.phone) ? ("do_not_call" as const) : ("queued" as const),
+      created_at: at,
+      next_attempt_at: at,
+    };
+  });
   for (let i = 0; i < rows.length; i += 500) {
     const { error: insertError } = await supabase.from("campaign_contacts").insert(rows.slice(i, i + 500));
     if (insertError) {

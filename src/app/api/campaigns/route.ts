@@ -60,11 +60,15 @@ export async function POST(request: Request) {
       window_end: windowEnd,
       max_concurrent: intIn(body?.maxConcurrent, 1, 20, 3),
       max_attempts: intIn(body?.maxAttempts, 1, 5, 2),
-      retry_after_minutes: intIn(body?.retryAfterMinutes, 15, 1440, 120),
+      retry_after_minutes: intIn(body?.retryAfterMinutes, 5, 1440, 120),
       created_by: session.userId,
     })
     .select("id")
     .single();
+  // 23514 is a check violation: a database without phase 23 still refuses retries under 15 minutes.
+  if (error?.code === "23514" && Number(body?.retryAfterMinutes) < 15) {
+    return NextResponse.json({ error: "Retries under 15 minutes aren't switched on yet. Pick 30 minutes or more for now." }, { status: 400 });
+  }
   if (error || !campaign) return NextResponse.json({ error: "Could not create the campaign." }, { status: 500 });
 
   // Rows from one insert would all share now(), leaving the calling order (next_attempt_at)

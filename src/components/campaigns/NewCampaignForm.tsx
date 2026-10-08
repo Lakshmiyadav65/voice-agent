@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 
+import { CallingSettings, DEFAULT_SETTINGS, type CampaignSettings } from "@/components/campaigns/CallingSettings";
 import {
   contactsFromCsv,
   isCallablePhone,
@@ -85,11 +86,7 @@ export function NewCampaignForm() {
   const [pasteText, setPasteText] = useState("");
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState("");
-  const [maxConcurrent, setMaxConcurrent] = useState(3);
-  const [windowStart, setWindowStart] = useState("10:00");
-  const [windowEnd, setWindowEnd] = useState("19:00");
-  const [maxAttempts, setMaxAttempts] = useState(2);
-  const [retryAfterMinutes, setRetryAfterMinutes] = useState(120);
+  const [settings, setSettings] = useState<CampaignSettings>(DEFAULT_SETTINGS);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -153,11 +150,7 @@ export function NewCampaignForm() {
         body: JSON.stringify({
           name,
           contacts: ready,
-          maxConcurrent,
-          windowStart,
-          windowEnd,
-          maxAttempts,
-          retryAfterMinutes,
+          ...settings,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -184,7 +177,6 @@ export function NewCampaignForm() {
   const input =
     "mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-ink outline-hidden focus:border-accent";
   const label = "text-xs font-semibold text-ink";
-  const hint = "mt-1 block text-[11px] text-muted";
 
   return (
     <form onSubmit={create} className="space-y-8 rounded-xl border border-border bg-surface p-6">
@@ -299,45 +291,14 @@ export function NewCampaignForm() {
         {fileError ? <p className="text-sm text-warn">{fileError}</p> : null}
       </section>
 
-      <section className="space-y-4 border-t border-border pt-6">
+      <section className="space-y-5 border-t border-border pt-6">
         <div>
           <h3 className="text-sm font-semibold text-ink">Calling settings</h3>
           <p className="mt-1 text-xs text-muted">
-            Calls only go out between 09:00 and 21:00, as Indian telemarketing rules require. Numbers on your do-not-call list are skipped automatically.
+            Calls only go out between 9 AM and 9 PM, as Indian telemarketing rules require. Numbers on your do-not-call list are skipped automatically.
           </p>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="block">
-            <span className={label}>Calls at the same time</span>
-            <input type="number" min={1} max={20} value={maxConcurrent} onChange={(e) => setMaxConcurrent(Number(e.target.value))} className={input} />
-            <span className={hint}>1 to 20 lines</span>
-          </label>
-          <div>
-            <span className={label}>Calling hours (IST)</span>
-            <div className="flex items-center gap-2">
-              <input type="time" min="09:00" max="21:00" value={windowStart} onChange={(e) => setWindowStart(e.target.value)} className={input} />
-              <span className="mt-1.5 text-muted">–</span>
-              <input type="time" min="09:00" max="21:00" value={windowEnd} onChange={(e) => setWindowEnd(e.target.value)} className={input} />
-            </div>
-            <span className={hint}>Between 09:00 and 21:00</span>
-          </div>
-          <label className="block">
-            <span className={label}>Tries per number</span>
-            <input type="number" min={1} max={5} value={maxAttempts} onChange={(e) => setMaxAttempts(Number(e.target.value))} className={input} />
-            <span className={hint}>1 to 5 · unanswered numbers are retried</span>
-          </label>
-          <label className="block">
-            <span className={label}>Wait before retrying</span>
-            <select value={retryAfterMinutes} onChange={(e) => setRetryAfterMinutes(Number(e.target.value))} className={input}>
-              <option value={30}>30 minutes</option>
-              <option value={60}>1 hour</option>
-              <option value={120}>2 hours</option>
-              <option value={240}>4 hours</option>
-              <option value={1440}>Next day</option>
-            </select>
-            <span className={hint}>Time between tries</span>
-          </label>
-        </div>
+        <CallingSettings value={settings} onChange={setSettings} />
       </section>
 
       <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
